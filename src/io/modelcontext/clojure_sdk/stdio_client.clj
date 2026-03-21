@@ -55,7 +55,7 @@
 (defn disconnect!
   "Shut down the client and destroy the server process."
   [{:keys [client ^Process process]}]
-  (lsp.server/shutdown client)
+  (client/shutdown! client)
   (when (and process (.isAlive process))
     (.destroy process)
     (.waitFor process 5 java.util.concurrent.TimeUnit/SECONDS)
