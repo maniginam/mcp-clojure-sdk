@@ -61,12 +61,19 @@ CLOSED: [2025-05-25 Sun]
 * TODO Implement the HTTP-SSE Transport
 ** TODO Implement the SSE-transport based server
 ** TODO Implement the SSE-transport based client
-* TODO Checks and Balances in the mcp-cljc-sdk code
-** TODO Make sure that handle-* functions are implement proper checks
-Read through the python decorator code to double-check if we are doing the right thing here.
-** TODO Implement best practices for prompts
-** TODO Implement best practices for tools
-** TODO Implement best practices for resources
+* WORKING Checks and Balances in the mcp-cljc-sdk code
+** DONE Make sure that handle-* functions implement proper checks
+CLOSED: [2026-03-21 Sat]
+Added invalid-params validation (-32602) for tools/call, resources/read, prompts/get.
+Error handling for handler exceptions in tool/resource/prompt handlers.
+** DONE Add response helpers for building well-formed responses
+CLOSED: [2026-03-21 Sat]
+text-content, image-content, error-content, prompt-message helper functions.
+** DONE Add cursor-based pagination to list handlers
+CLOSED: [2026-03-21 Sat]
+** DONE Add registration/deregistration API with capability cleanup
+CLOSED: [2026-03-21 Sat]
+deregister-tool!, deregister-resource!, deregister-prompt!, deregister-resource-template!, deregister-completion!
 ** TODO Ensure that error handling is correctly done for transports
 ** TODO Implement best practices for transports
 * DONE Implement the entire sampling section of the protocol
