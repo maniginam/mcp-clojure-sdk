@@ -47,10 +47,11 @@
 
 (defn connect!
   "Start the client endpoint and initialize the connection.
+   Stores server info and capabilities in the client context.
    Returns the server's initialize response."
   [{:keys [client context]}]
   (client/start! client context)
-  (client/initialize! client))
+  (client/initialize! client {:context context}))
 
 (defn disconnect!
   "Shut down the client and destroy the server process."
