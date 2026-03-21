@@ -443,19 +443,21 @@
 (defn register-tool!
   [context tool handler]
   (swap! (:tools context) assoc (:name tool) {:tool tool, :handler handler})
-  (swap! (:capabilities context) assoc :tools {}))
+  (swap! (:capabilities context) assoc :tools {:listChanged true}))
 
 (defn register-resource!
   [context resource handler]
   (swap! (:resources context) assoc
     (:uri resource)
     {:resource resource, :handler handler})
-  (swap! (:capabilities context) assoc :resources {:subscribe true}))
+  (swap! (:capabilities context) assoc :resources {:subscribe true,
+                                                    :listChanged true}))
 
 (defn register-resource-template!
   [context template]
   (swap! (:resource-templates context) assoc (:uriTemplate template) template)
-  (swap! (:capabilities context) assoc :resources {:subscribe true}))
+  (swap! (:capabilities context) assoc :resources {:subscribe true,
+                                                    :listChanged true}))
 
 (defn register-completion!
   "Register a completion handler for a prompt or resource argument.
@@ -471,7 +473,7 @@
   (swap! (:prompts context) assoc
     (:name prompt)
     {:prompt prompt, :handler handler})
-  (swap! (:capabilities context) assoc :prompts {}))
+  (swap! (:capabilities context) assoc :prompts {:listChanged true}))
 
 (defn- create-empty-context
   [name version]
@@ -542,11 +544,13 @@
       ;; Set capabilities based on what was registered
       (reset! (:capabilities context)
               (cond-> {:logging {}}
-                (seq @(:tools context)) (assoc :tools {})
+                (seq @(:tools context))
+                  (assoc :tools {:listChanged true})
                 (or (seq @(:resources context))
                     (seq @(:resource-templates context)))
-                  (assoc :resources {:subscribe true})
-                (seq @(:prompts context)) (assoc :prompts {})))
+                  (assoc :resources {:subscribe true, :listChanged true})
+                (seq @(:prompts context))
+                  (assoc :prompts {:listChanged true})))
       context)))
 
 (defn start!

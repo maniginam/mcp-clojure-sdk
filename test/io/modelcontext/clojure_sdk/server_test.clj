@@ -159,7 +159,8 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2024-11-05",
-                  :capabilities {:logging {}, :tools {}},
+                  :capabilities {:logging {},
+                                    :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server)))
@@ -179,7 +180,8 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2025-03-26",
-                  :capabilities {:logging {}, :tools {}},
+                  :capabilities {:logging {},
+                                    :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server)))
@@ -199,7 +201,8 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2025-03-26",
-                  :capabilities {:logging {}, :tools {}},
+                  :capabilities {:logging {},
+                                    :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server))))
