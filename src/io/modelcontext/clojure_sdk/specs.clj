@@ -556,7 +556,6 @@
   #{"debug" "info" "notice" "warning" "error" "critical" "alert" "emergency"})
 
 ;;; Sampling
-;; @TODO: Specs need to be cleaned up
 ;; A request from the server to sample an LLM via the client. The client has
 ;; full discretion over which model to select. The client should also inform
 ;; the
@@ -595,7 +594,6 @@
 ;; allow the server to see it.
 
 ;; The name of the model that generated the message.
-;; @TODO: Specs need to be cleaned up
 (s/def :sampling-create-message-response/model string?)
 ;; The reason why sampling stopped, if known.
 (s/def :sampling-create-message-response/stopReason
@@ -738,7 +736,6 @@
 (s/def :ref/resource (s/keys :req-un [:ref/type :resource/uri]))
 
 ;;; Roots
-;; @TODO: Specs need to be cleaned up
 ;; Sent from the server to request a list of root URIs from the client. Roots
 ;; allow servers to ask for specific directories or files to operate on. A
 ;; common example for roots is providing a set of repositories or directories a
