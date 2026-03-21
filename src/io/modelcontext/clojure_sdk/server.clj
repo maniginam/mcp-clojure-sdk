@@ -266,11 +266,12 @@
 
 ;; [ref: set_logging_level_request]
 (defmethod lsp.server/receive-request "logging/setLevel"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-request :method "logging/setLevel" :params params)
   ;; [ref: log_bad_input_params]
   (conform-or-log ::specs/set-logging-level-request params)
-  ::lsp.server/method-not-found)
+  (reset! (:log-level context) (:level params))
+  {})
 
 ;; [ref: complete_request]
 (defmethod lsp.server/receive-request "completion/complete"
@@ -421,8 +422,9 @@
    :resources (atom {}),
    :prompts (atom {}),
    :roots (atom []),
+   :log-level (atom nil),
    :protocol (atom nil),
-   :capabilities (atom {}),
+   :capabilities (atom {:logging {}}),
    :connected-clients (atom {})})
 
 (defn create-context!
@@ -466,7 +468,7 @@
         (register-prompt! context (dissoc prompt :handler) (:handler prompt)))
       ;; Set capabilities based on what was registered
       (reset! (:capabilities context)
-              (cond-> {}
+              (cond-> {:logging {}}
                 (seq @(:tools context)) (assoc :tools {})
                 (seq @(:resources context)) (assoc :resources {})
                 (seq @(:prompts context)) (assoc :prompts {})))

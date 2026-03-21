@@ -259,8 +259,8 @@
 (deftest dynamic-capability-updates
   (testing "Registering tools/resources/prompts dynamically updates capabilities"
     (let [context (server/create-context! {:name "test", :version "1.0.0"})]
-      (testing "Empty server has no capabilities"
-        (is (= {} @(:capabilities context))))
+      (testing "Empty server has only logging capability"
+        (is (= {:logging {}} @(:capabilities context))))
       (testing "Adding a tool adds :tools capability"
         (server/register-tool! context
                                {:name "test-tool",

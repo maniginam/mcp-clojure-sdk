@@ -151,7 +151,7 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2024-11-05",
-                  :capabilities {:tools {}},
+                  :capabilities {:logging {}, :tools {}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server)))
@@ -171,7 +171,7 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2025-03-26",
-                  :capabilities {:tools {}},
+                  :capabilities {:logging {}, :tools {}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server)))
@@ -191,7 +191,7 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2025-03-26",
-                  :capabilities {:tools {}},
+                  :capabilities {:logging {}, :tools {}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server))))
@@ -542,6 +542,24 @@
                          :result {:roots [{:uri "file:///initial/path"}]}}))
           (deref result-promise 1000 :timeout)
           (is (= [{:uri "file:///initial/path"}] @(:roots context)))))
+      (lsp.server/shutdown server))))
+
+(deftest set-logging-level
+  (testing "Client can set the server's logging level"
+    (let [server (server/chan-server)
+          context (server/create-context! {:name "test-server",
+                                           :version "1.0.0",
+                                           :tools [tool-echo]})
+          _join (server/start! server context)]
+      (testing "Setting a valid log level stores it in context"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 1
+                                          "logging/setLevel"
+                                          {:level "warning"}))
+        (let [response (h/assert-take (:output-ch server))]
+          (is (= {} (:result response)))))
+      (testing "Log level is stored in context"
+        (is (= "warning" @(:log-level context))))
       (lsp.server/shutdown server))))
 
 (deftest validate-spec-test
