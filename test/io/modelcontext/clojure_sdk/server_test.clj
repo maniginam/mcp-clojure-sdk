@@ -812,6 +812,20 @@
             "Debug message should be suppressed when level is warning"))
       (server/shutdown! server))))
 
+(deftest response-helpers
+  (testing "text-content creates a text content block"
+    (is (= {:type "text", :text "hello"} (server/text-content "hello"))))
+  (testing "image-content creates an image content block"
+    (is (= {:type "image", :data "base64data", :mimeType "image/png"}
+           (server/image-content "base64data" "image/png"))))
+  (testing "error-content creates an error content block"
+    (let [result (server/error-content "something went wrong")]
+      (is (= "text" (:type result)))
+      (is (= "something went wrong" (:text result)))))
+  (testing "prompt-message creates a prompt message"
+    (is (= {:role "assistant", :content {:type "text", :text "Hello!"}}
+           (server/prompt-message "assistant" "Hello!")))))
+
 (deftest validate-spec-test
   (testing "Validating server specifications"
     (let [valid-tool {:name "valid-tool",

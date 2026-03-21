@@ -6,6 +6,31 @@
             [lsp4clj.server :as lsp.server]
             [me.vedang.logger.interface :as log]))
 
+;;; Response Helpers
+;; Convenience functions for constructing well-formed MCP responses
+
+(defn text-content
+  "Create a text content block for tool responses."
+  [text]
+  {:type "text", :text text})
+
+(defn image-content
+  "Create an image content block for tool responses."
+  [data mime-type]
+  {:type "image", :data data, :mimeType mime-type})
+
+(defn error-content
+  "Create an error tool response."
+  [message]
+  {:type "text", :text message, :isError true})
+
+(defn prompt-message
+  "Create a prompt message for prompt handler responses."
+  ([role text]
+   {:role role, :content {:type "text", :text text}})
+  ([role content-type content-data]
+   {:role role, :content (merge {:type content-type} content-data)}))
+
 ;;; Helpers
 ;; Logging and Spec Checking
 (defmacro conform-or-log
