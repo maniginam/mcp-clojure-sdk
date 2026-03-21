@@ -1,6 +1,6 @@
 # io.modelcontext/clojure-sdk
 
-A `clojure-sdk` for creating Model Context Protocol servers!
+A `clojure-sdk` for creating Model Context Protocol servers and clients!
 
 ## Table of Contents          :TOC_4:
 - [io.modelcontext/clojure-sdk](#iomodelcontextclojure-sdk)
@@ -208,20 +208,55 @@ execute this command from the `mcp-clojure-sdk` repo)
 npx @modelcontextprotocol/inspector java -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dorg.eclipse.jetty.util.log.class=org.eclipse.jetty.util.log.Slf4jLog -Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector -Dlog4j2.configurationFile=log4j2-mcp.xml -Dbabashka.json.provider=metosin/jsonista -Dlogging.level=INFO -cp examples/target/io.modelcontextprotocol.clojure-sdk/examples-1.2.0.jar code_analysis_server
 ```
 
+### Client Usage
+
+The SDK also provides an MCP client for connecting to MCP servers:
+
+```clojure
+(require '[io.modelcontext.clojure-sdk.stdio-client :as stdio-client])
+
+;; Connect to an MCP server subprocess
+(let [{:keys [client] :as conn}
+      (stdio-client/stdio-client
+        {:command ["java" "-cp" "server.jar" "my_server"]
+         :client-info {:name "my-client" :version "1.0.0"}
+         :roots [{:uri "file:///my/project" :name "My Project"}]})]
+  (stdio-client/connect! conn)
+
+  ;; Initialize the connection
+  (client/initialize! client)
+
+  ;; Use the server
+  (client/list-tools! client)
+  (client/call-tool! client "add" {:a 1 :b 2})
+  (client/list-resources! client)
+  (client/read-resource! client "file:///README.md")
+  (client/list-prompts! client)
+  (client/get-prompt! client "greet" {:name "World"})
+
+  ;; Disconnect
+  (stdio-client/disconnect! conn))
+```
+
 ## Core Components
 
-1. **Server Implementation**: The core server functionality is
-   implemented in `server.clj`, which handles request/response cycles
-   for various MCP methods.
+1. **Server Implementation** (`server.clj`): Handles request/response
+   cycles for all MCP methods including tools, resources, prompts, and
+   roots. Supports dynamic capability negotiation — the server only
+   advertises capabilities for features that are registered.
 
-2. **Transport Layer**: The SDK implements a STDIO transport in
-   `stdio_server.clj` using `io_chan.clj` to convert between IO
-   streams and core.async channels.
+2. **Client Implementation** (`client.clj`): Full MCP client that can
+   initialize connections, call tools, read resources, get prompts,
+   and respond to server-initiated requests like `roots/list`.
 
-3. **Error Handling**: Custom error handling is defined in
+3. **Transport Layer**: The SDK implements STDIO transport for both
+   server (`stdio_server.clj`) and client (`stdio_client.clj`) using
+   `io_chan.clj` to convert between IO streams and core.async channels.
+
+4. **Error Handling**: Custom error handling is defined in
    `mcp/errors.clj`.
 
-4. **Protocol Specifications**: All protocol specifications are
+5. **Protocol Specifications**: All protocol specifications are
    defined in `specs.clj`, which provides validation for requests,
    responses, and server components.
 
@@ -253,9 +288,17 @@ client-server interaction:
    - The client can request predefined prompts
    - The server returns the appropriate messages
 
-6. **Optional Features**:
-   - Resource subscription for updates
-   - Health checks via ping/pong
+6. **Roots**:
+   - The server can request root URIs from the client via `roots/list`
+   - The client notifies the server when roots change
+
+7. **Notifications**:
+   - Server can notify clients of tool/resource/prompt list changes
+   - Server can send log messages to clients
+   - Client can notify server of root list changes
+
+8. **Health Check**:
+   - Bidirectional ping support
 
 ```mermaid
 sequenceDiagram
@@ -298,14 +341,21 @@ sequenceDiagram
     Prompt-->>-MCPServer: messages
     MCPServer-->>-Client: Prompt messages
 
-    Note over Client,MCPServer: Optional Subscription
-    Client->>+MCPServer: resources/subscribe (uri)
-    MCPServer-->>-Client: Empty response
+    Note over Client,MCPServer: Roots
+    MCPServer->>+Client: roots/list
+    Client-->>-MCPServer: List of root URIs
+    Client->>MCPServer: notifications/roots/list_changed
+
+    Note over Client,MCPServer: Notifications
+    MCPServer-->>Client: notifications/tools/list_changed
+    MCPServer-->>Client: notifications/resources/list_changed
     MCPServer-->>Client: notifications/resources/updated
+    MCPServer-->>Client: notifications/prompts/list_changed
+    MCPServer-->>Client: notifications/message (logging)
 
     Note over Client,MCPServer: Health Check
     Client->>+MCPServer: ping
-    MCPServer-->>-Client: pong
+    MCPServer-->>-Client: {}
 ```
 ## Pending Work
 
