@@ -494,6 +494,21 @@
   (when (empty? @(:prompts context))
     (swap! (:capabilities context) dissoc :prompts)))
 
+(defn deregister-resource-template!
+  [context uri-template]
+  (swap! (:resource-templates context) dissoc uri-template)
+  (when (and (empty? @(:resources context))
+             (empty? @(:resource-templates context)))
+    (swap! (:capabilities context) dissoc :resources)))
+
+(defn deregister-completion!
+  [context ref-key arg-name]
+  (swap! (:completions context) update ref-key dissoc arg-name)
+  (swap! (:completions context)
+         (fn [m] (into {} (remove (fn [[_ v]] (empty? v))) m)))
+  (when (empty? @(:completions context))
+    (swap! (:capabilities context) dissoc :completions)))
+
 (defn- create-empty-context
   [name version]
   (log/trace :fn :create-empty-context)

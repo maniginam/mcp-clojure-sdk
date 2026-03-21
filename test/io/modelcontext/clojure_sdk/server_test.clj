@@ -185,6 +185,28 @@
       (is (= 0 (count @(:prompts context))))
       (is (not (contains? @(:capabilities context) :prompts))))))
 
+(deftest resource-template-deregistration
+  (testing "Deregistering a resource template removes it and updates capabilities"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resource-templates [resource-template-user]})]
+      (is (= 1 (count @(:resource-templates context))))
+      (is (contains? @(:capabilities context) :resources))
+      (server/deregister-resource-template! context "file:///users/{userId}/profile")
+      (is (= 0 (count @(:resource-templates context))))
+      (is (not (contains? @(:capabilities context) :resources))))))
+
+(deftest completion-deregistration
+  (testing "Deregistering a completion removes it and updates capabilities"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools []})]
+      (server/register-completion! context "my-prompt" "arg1"
+        (fn [_] {:values ["a" "b"]}))
+      (is (contains? @(:capabilities context) :completions))
+      (server/deregister-completion! context "my-prompt" "arg1")
+      (is (empty? (get @(:completions context) "my-prompt")))
+      (is (not (contains? @(:capabilities context) :completions))))))
+
 (deftest initialization
   (testing "Connection initialization through initialize, 2024-11-05 version"
     (let [context (server/create-context!
