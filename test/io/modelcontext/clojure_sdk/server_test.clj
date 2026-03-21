@@ -306,6 +306,13 @@
                                     (mcp.errors/body :tool-not-found
                                                      {:tool-name "invalid"}))
                (h/assert-take (:output-ch server)))))
+      (testing "Missing tool name returns invalid-params error"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 4 "tools/call" {:arguments {:x 1}}))
+        (is (= (lsp.responses/error (lsp.responses/response 4)
+                                    (mcp.errors/body :invalid-params
+                                                     {:missing "name"}))
+               (h/assert-take (:output-ch server)))))
       (lsp.server/shutdown server))))
 
 (deftest prompt-listing
@@ -401,6 +408,14 @@
                                                      {:prompt-name
                                                       "invalid-prompt"}))
                (h/assert-take (:output-ch server)))))
+      (testing "Missing prompt name returns invalid-params error"
+        (async/put!
+          (:input-ch server)
+          (lsp.requests/request 4 "prompts/get" {:arguments {:x 1}}))
+        (is (= (lsp.responses/error (lsp.responses/response 4)
+                                    (mcp.errors/body :invalid-params
+                                                     {:missing "name"}))
+               (h/assert-take (:output-ch server)))))
       (lsp.server/shutdown server))))
 
 (deftest resource-listing
@@ -472,6 +487,13 @@
                                     (mcp.errors/body :resource-not-found
                                                      {:uri
                                                       "file:///invalid.txt"}))
+               (h/assert-take (:output-ch server)))))
+      (testing "Missing resource URI returns invalid-params error"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 5 "resources/read" {}))
+        (is (= (lsp.responses/error (lsp.responses/response 5)
+                                    (mcp.errors/body :invalid-params
+                                                     {:missing "uri"}))
                (h/assert-take (:output-ch server)))))
       (lsp.server/shutdown server))))
 

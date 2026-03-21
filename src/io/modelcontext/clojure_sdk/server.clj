@@ -83,17 +83,19 @@
   (log/trace :fn :handle-call-tool
              :tool (:name params)
              :args (:arguments params))
-  (let [tools @(:tools context)
-        tool-name (:name params)
-        arguments (:arguments params)]
-    (if-let [{:keys [tool handler]} (get tools tool-name)]
-      (try (coerce-tool-response tool (handler arguments))
-           (catch Exception e
-             {:content [{:type "text", :text (str "Error: " (.getMessage e))}],
-              :isError true}))
-      (do
-        (log/debug :fn :handle-call-tool :tool tool-name :error :tool-not-found)
-        {:error (mcp.errors/body :tool-not-found {:tool-name tool-name})}))))
+  (let [tool-name (:name params)]
+    (if-not tool-name
+      {:error (mcp.errors/body :invalid-params {:missing "name"})}
+      (let [tools @(:tools context)
+            arguments (:arguments params)]
+        (if-let [{:keys [tool handler]} (get tools tool-name)]
+          (try (coerce-tool-response tool (handler arguments))
+               (catch Exception e
+                 {:content [{:type "text", :text (str "Error: " (.getMessage e))}],
+                  :isError true}))
+          (do
+            (log/debug :fn :handle-call-tool :tool tool-name :error :tool-not-found)
+            {:error (mcp.errors/body :tool-not-found {:tool-name tool-name})}))))))
 
 (defn- handle-list-resources
   [context _params]
@@ -103,19 +105,21 @@
 (defn- handle-read-resource
   [context params]
   (log/trace :fn :handle-read-resource :resource (:uri params))
-  (let [resources @(:resources context)
-        uri (:uri params)]
-    (if-let [{:keys [handler]} (get resources uri)]
-      (try {:contents [(handler uri)]}
-           (catch Exception e
-             {:contents [{:uri uri,
-                          :mimeType "text/plain",
-                          :text (str "Error: " (.getMessage e))}],
-              :isError true}))
-      (do (log/debug :fn :handle-read-resource
-                     :resource uri
-                     :error :resource-not-found)
-          {:error (mcp.errors/body :resource-not-found {:uri uri})}))))
+  (let [uri (:uri params)]
+    (if-not uri
+      {:error (mcp.errors/body :invalid-params {:missing "uri"})}
+      (let [resources @(:resources context)]
+        (if-let [{:keys [handler]} (get resources uri)]
+          (try {:contents [(handler uri)]}
+               (catch Exception e
+                 {:contents [{:uri uri,
+                              :mimeType "text/plain",
+                              :text (str "Error: " (.getMessage e))}],
+                  :isError true}))
+          (do (log/debug :fn :handle-read-resource
+                         :resource uri
+                         :error :resource-not-found)
+              {:error (mcp.errors/body :resource-not-found {:uri uri})}))))))
 
 (defn- handle-list-prompts
   [context _params]
@@ -127,21 +131,23 @@
   (log/trace :fn :handle-get-prompt
              :prompt (:name params)
              :args (:arguments params))
-  (let [prompts @(:prompts context)
-        prompt-name (:name params)
-        arguments (:arguments params)]
-    (if-let [{:keys [handler]} (get prompts prompt-name)]
-      (try (handler arguments)
-           (catch Exception e
-             {:messages [{:role "assistant",
-                          :content {:type "text",
-                                    :text (str "Error: " (.getMessage e))}}],
-              :isError true}))
-      (do (log/debug :fn :handle-get-prompt
-                     :prompt prompt-name
-                     :error :prompt-not-found)
-          {:error (mcp.errors/body :prompt-not-found
-                                   {:prompt-name prompt-name})}))))
+  (let [prompt-name (:name params)]
+    (if-not prompt-name
+      {:error (mcp.errors/body :invalid-params {:missing "name"})}
+      (let [prompts @(:prompts context)
+            arguments (:arguments params)]
+        (if-let [{:keys [handler]} (get prompts prompt-name)]
+          (try (handler arguments)
+               (catch Exception e
+                 {:messages [{:role "assistant",
+                              :content {:type "text",
+                                        :text (str "Error: " (.getMessage e))}}],
+                  :isError true}))
+          (do (log/debug :fn :handle-get-prompt
+                         :prompt prompt-name
+                         :error :prompt-not-found)
+              {:error (mcp.errors/body :prompt-not-found
+                                       {:prompt-name prompt-name})}))))))
 
 ;;; Requests and Notifications
 

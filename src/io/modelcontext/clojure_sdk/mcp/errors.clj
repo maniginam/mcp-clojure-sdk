@@ -7,7 +7,8 @@
   (assoc lsp.errors/by-key
     :tool-not-found {:code -32601, :message "Tool not found"}
     :resource-not-found {:code -32601, :message "Resource not found"}
-    :prompt-not-found {:code -32601, :message "Prompt not found"}))
+    :prompt-not-found {:code -32601, :message "Prompt not found"}
+    :invalid-params {:code -32602, :message "Invalid params"}))
 
 (defn body
   "Returns a JSON-RPC error object with the code and, if provided, the message
