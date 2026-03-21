@@ -1,5 +1,6 @@
 (ns io.modelcontext.clojure-sdk.client-test
   (:require [clojure.core.async :as async]
+            [clojure.string]
             [clojure.test :refer [deftest is testing]]
             [io.modelcontext.clojure-sdk.client :as client]
             [io.modelcontext.clojure-sdk.server :as server]
@@ -353,4 +354,77 @@
         (is (some? result))
         (is (= "test-model" (:model result)))
         (is (= "Echo: Hello" (get-in result [:content :text]))))
+      (shutdown-pair! pair))))
+
+(deftest client-complete
+  (testing "Client can request completions from server"
+    (let [pair (create-connected-pair
+                 {:name "test-server",
+                  :version "1.0.0",
+                  :tools [],
+                  :prompts [{:name "greet",
+                             :description "Greet someone",
+                             :arguments [{:name "name", :required true}],
+                             :handler (fn [args]
+                                        {:messages
+                                         [{:role "assistant",
+                                           :content
+                                           {:type "text",
+                                            :text (str "Hi " (:name args))}}]})}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (server/register-completion!
+        (:server-context pair) "greet" "name"
+        (fn [partial]
+          {:values (filterv #(clojure.string/starts-with? % partial)
+                            ["Alice" "Bob"])}))
+      (let [result (client/complete! (:client pair)
+                                     {:type "ref/prompt", :name "greet"}
+                                     {:name "name", :value "A"})]
+        (is (= ["Alice"] (get-in result [:completion :values]))))
+      (shutdown-pair! pair))))
+
+(deftest client-set-logging-level
+  (testing "Client can set server logging level"
+    (let [pair (create-connected-pair
+                 {:name "test-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/set-logging-level! (:client pair) "error")]
+        (is (= {} result)))
+      (shutdown-pair! pair))))
+
+(deftest client-resource-subscribe
+  (testing "Client can subscribe and unsubscribe to resources"
+    (let [pair (create-connected-pair
+                 {:name "test-server",
+                  :version "1.0.0",
+                  :tools [],
+                  :resources [test-resource]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (is (= {} (client/subscribe-resource! (:client pair) "file:///test.txt")))
+      (is (= {} (client/unsubscribe-resource! (:client pair) "file:///test.txt")))
+      (shutdown-pair! pair))))
+
+(deftest client-notify-roots-changed
+  (testing "Client can notify server of root list changes"
+    (let [pair (create-connected-pair
+                 {:name "test-server", :version "1.0.0", :tools [echo-tool]}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :roots [{:uri "file:///initial"}]})]
+      (start-pair! pair)
+      (reset! (:protocol (:server-context pair)) (:server pair))
+      (client/initialize! (:client pair))
+      (testing "Update roots and notify"
+        (reset! (:roots (:client-context pair))
+                [{:uri "file:///new-root", :name "New Root"}])
+        (client/notify-roots-changed! (:client pair))
+        ;; Give async refresh time to complete
+        (Thread/sleep 200)
+        (is (= [{:uri "file:///new-root", :name "New Root"}]
+               @(:roots (:server-context pair)))))
       (shutdown-pair! pair))))

@@ -83,7 +83,7 @@
              :method "notifications/message"
              :params params))
 
-;;; Client API
+;;; Client API — Requests (sent TO server)
 
 (def ^:private default-timeout-ms 30000)
 
@@ -148,6 +148,26 @@
   (let [pending (lsp.server/send-request client "resources/read" {:uri uri})]
     (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
 
+(defn list-resource-templates!
+  "List available resource templates from the server."
+  ([client] (list-resource-templates! client {}))
+  ([client params]
+   (let [pending (lsp.server/send-request client "resources/templates/list" params)]
+     (lsp.server/deref-or-cancel pending default-timeout-ms nil))))
+
+(defn subscribe-resource!
+  "Subscribe to updates for a resource URI."
+  [client uri]
+  (let [pending (lsp.server/send-request client "resources/subscribe" {:uri uri})]
+    (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
+
+(defn unsubscribe-resource!
+  "Unsubscribe from updates for a resource URI."
+  [client uri]
+  (let [pending (lsp.server/send-request client "resources/unsubscribe"
+                                         {:uri uri})]
+    (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
+
 (defn list-prompts!
   "List available prompts from the server."
   ([client] (list-prompts! client {}))
@@ -163,3 +183,23 @@
                                           {:name prompt-name,
                                            :arguments arguments})]
      (lsp.server/deref-or-cancel pending default-timeout-ms nil))))
+
+(defn complete!
+  "Request autocompletion suggestions from the server."
+  [client ref argument]
+  (let [pending (lsp.server/send-request client "completion/complete"
+                                         {:ref ref, :argument argument})]
+    (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
+
+(defn set-logging-level!
+  "Set the server's logging level."
+  [client level]
+  (let [pending (lsp.server/send-request client "logging/setLevel" {:level level})]
+    (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
+
+;;; Client Notifications (sent TO server)
+
+(defn notify-roots-changed!
+  "Notify the server that the client's root list has changed."
+  [client]
+  (lsp.server/send-notification client "notifications/roots/list_changed" {}))
