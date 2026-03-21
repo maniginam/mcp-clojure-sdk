@@ -254,21 +254,23 @@
 
 ;; [ref: resource_subscribe_unsubscribe_request]
 (defmethod lsp.server/receive-request "resources/subscribe"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-request :method "resources/subscribe" :params params)
   ;; [ref: log_bad_input_params]
   (conform-or-log ::specs/resource-subscribe-unsubscribe-request params)
-  ::lsp.server/method-not-found)
+  (swap! (:subscriptions context) update (:uri params) (fnil conj #{}) :subscribed)
+  {})
 
 ;; [ref: resource_subscribe_unsubscribe_request]
 (defmethod lsp.server/receive-request "resources/unsubscribe"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-request
              :method "resources/unsubscribe"
              :params params)
   ;; [ref: log_bad_input_params]
   (conform-or-log ::specs/resource-subscribe-unsubscribe-request params)
-  ::lsp.server/method-not-found)
+  (swap! (:subscriptions context) dissoc (:uri params))
+  {})
 
 ;; [ref: set_logging_level_request]
 (defmethod lsp.server/receive-request "logging/setLevel"
@@ -431,12 +433,12 @@
   (swap! (:resources context) assoc
     (:uri resource)
     {:resource resource, :handler handler})
-  (swap! (:capabilities context) assoc :resources {}))
+  (swap! (:capabilities context) assoc :resources {:subscribe true}))
 
 (defn register-resource-template!
   [context template]
   (swap! (:resource-templates context) assoc (:uriTemplate template) template)
-  (swap! (:capabilities context) assoc :resources {}))
+  (swap! (:capabilities context) assoc :resources {:subscribe true}))
 
 (defn register-completion!
   "Register a completion handler for a prompt or resource argument.
@@ -472,6 +474,7 @@
    :resource-templates (atom {}),
    :prompts (atom {}),
    :completions (atom {}),
+   :subscriptions (atom {}),
    :roots (atom []),
    :log-level (atom nil),
    :protocol (atom nil),
@@ -524,7 +527,8 @@
               (cond-> {:logging {}}
                 (seq @(:tools context)) (assoc :tools {})
                 (or (seq @(:resources context))
-                    (seq @(:resource-templates context))) (assoc :resources {})
+                    (seq @(:resource-templates context)))
+                  (assoc :resources {:subscribe true})
                 (seq @(:prompts context)) (assoc :prompts {})))
       context)))
 

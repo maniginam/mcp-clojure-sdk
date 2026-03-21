@@ -479,6 +479,34 @@
           (is (= [] (get-in result [:completion :values])))))
       (lsp.server/shutdown server))))
 
+(deftest resource-subscribe-unsubscribe
+  (testing "Client can subscribe and unsubscribe to resource updates"
+    (let [server (server/chan-server)
+          context (server/create-context! {:name "test-server",
+                                           :version "1.0.0",
+                                           :tools [],
+                                           :resources [resource-test-file]})
+          _join (server/start! server context)]
+      (testing "Subscribe to a resource"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 1
+                                          "resources/subscribe"
+                                          {:uri "file:///test.txt"}))
+        (let [response (h/assert-take (:output-ch server))]
+          (is (= {} (:result response)))))
+      (testing "Subscription is tracked"
+        (is (contains? @(:subscriptions context) "file:///test.txt")))
+      (testing "Unsubscribe from a resource"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 2
+                                          "resources/unsubscribe"
+                                          {:uri "file:///test.txt"}))
+        (let [response (h/assert-take (:output-ch server))]
+          (is (= {} (:result response)))))
+      (testing "Subscription is removed"
+        (is (not (contains? @(:subscriptions context) "file:///test.txt"))))
+      (lsp.server/shutdown server))))
+
 (deftest resource-handler-error
   (testing "Resource handler that throws returns error response"
     (let [failing-resource {:uri "file:///failing",
