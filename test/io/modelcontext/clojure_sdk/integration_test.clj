@@ -147,6 +147,37 @@
 
       (shutdown-pair! pair))))
 
+(deftest integration-sampling
+  (testing "Server can request LLM sampling from client over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "sampling-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :sampling-handler
+                  (fn [params]
+                    {:role "assistant",
+                     :content {:type "text",
+                               :text (str "Sampled: "
+                                          (-> params :messages first :content
+                                              :text))},
+                     :model "test-model",
+                     :stopReason "endTurn"})})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Server requests sampling and gets response"
+        (let [result (server/request-sampling!
+                       (:server pair)
+                       {:messages [{:role "user",
+                                    :content {:type "text",
+                                              :text "What is 2+2?"}}],
+                        :maxTokens 100})]
+          (is (some? result))
+          (is (= "test-model" (:model result)))
+          (is (= "Sampled: What is 2+2?"
+                 (get-in result [:content :text])))))
+
+      (shutdown-pair! pair))))
+
 (deftest integration-version-negotiation
   (testing "Client and server negotiate protocol version over piped streams"
     (let [pair (create-piped-pair
