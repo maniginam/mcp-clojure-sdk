@@ -97,7 +97,7 @@
    Sends initialize request followed by initialized notification.
    Returns the server's initialize response."
   ([client] (initialize! client {}))
-  ([client {:keys [client-info capabilities protocol-version]
+  ([client {:keys [client-info capabilities protocol-version context]
             :or {client-info {:name "mcp-clojure-client", :version "1.0.0"},
                  capabilities {:roots {:listChanged true}},
                  protocol-version (first specs/supported-protocol-versions)}}]
@@ -108,6 +108,9 @@
          result (lsp.server/deref-or-cancel pending default-timeout-ms nil)]
      (when result
        (lsp.server/send-notification client "notifications/initialized" {})
+       (when context
+         (reset! (:server-info context) (:serverInfo result))
+         (reset! (:server-capabilities context) (:capabilities result)))
        (log/trace :fn :initialize!
                   :server-info (:serverInfo result)
                   :protocol-version (:protocolVersion result)))

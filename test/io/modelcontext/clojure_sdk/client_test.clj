@@ -92,6 +92,17 @@
         (is (= "1.0.0" (get-in result [:serverInfo :version])))
         (is (contains? result :capabilities))
         (is (contains? result :protocolVersion)))
+      (shutdown-pair! pair)))
+  (testing "Initialize stores server info in context when provided"
+    (let [pair (create-connected-pair
+                 {:name "test-server", :version "1.0.0", :tools [echo-tool]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair)
+                          {:context (:client-context pair)})
+      (is (= "test-server" (:name @(:server-info (:client-context pair)))))
+      (is (= "1.0.0" (:version @(:server-info (:client-context pair)))))
+      (is (some? @(:server-capabilities (:client-context pair))))
       (shutdown-pair! pair))))
 
 (deftest client-list-tools
