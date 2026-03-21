@@ -1,0 +1,200 @@
+(ns io.modelcontext.clojure-sdk.integration-test
+  "Integration tests that verify end-to-end client-server communication
+   using piped streams to simulate stdio transport."
+  (:require [clojure.test :refer [deftest is testing]]
+            [io.modelcontext.clojure-sdk.client :as client]
+            [io.modelcontext.clojure-sdk.io-chan :as mcp.io-chan]
+            [io.modelcontext.clojure-sdk.server :as server]
+            [lsp4clj.server :as lsp.server])
+  (:import (java.io PipedInputStream PipedOutputStream)))
+
+;;; Test helpers
+
+(defn create-piped-pair
+  "Create a server and client connected through piped streams,
+   simulating stdio transport without an actual subprocess.
+   Returns {:server endpoint, :client endpoint, :server-context ctx, :client-context ctx}"
+  [server-spec client-opts]
+  ;; Server writes to server-out, client reads from server-out
+  ;; Client writes to client-out, server reads from client-out
+  (let [server-out-pipe (PipedOutputStream.)
+        server-in-pipe (PipedInputStream.)
+        client-reads-from (PipedInputStream. server-out-pipe)
+        server-reads-from (PipedOutputStream. server-in-pipe)
+        ;; Server endpoint: reads from server-in-pipe, writes to server-out-pipe
+        server-input-ch (mcp.io-chan/input-stream->input-chan server-in-pipe)
+        server-output-ch (mcp.io-chan/output-stream->output-chan server-out-pipe)
+        server-endpoint (lsp.server/chan-server {:input-ch server-input-ch,
+                                                 :output-ch server-output-ch})
+        ;; Client endpoint: reads from client-reads-from, writes to server-reads-from
+        client-input-ch (mcp.io-chan/input-stream->input-chan client-reads-from)
+        client-output-ch (mcp.io-chan/output-stream->output-chan server-reads-from)
+        client-endpoint (lsp.server/chan-server {:input-ch client-input-ch,
+                                                 :output-ch client-output-ch})
+        server-context (server/create-context! server-spec)
+        client-context (client/create-context client-opts)]
+    (reset! (:protocol server-context) server-endpoint)
+    {:server server-endpoint,
+     :client client-endpoint,
+     :server-context server-context,
+     :client-context client-context}))
+
+(defn start-pair!
+  [{:keys [server client server-context client-context]}]
+  (server/start! server server-context)
+  (client/start! client client-context))
+
+(defn shutdown-pair!
+  [{:keys [server client]}]
+  (lsp.server/shutdown client)
+  (lsp.server/shutdown server))
+
+;;; Test tools and resources
+
+(def calc-add
+  {:name "add",
+   :description "Add two numbers",
+   :inputSchema {:type "object",
+                 :properties {"a" {:type "number"}, "b" {:type "number"}},
+                 :required ["a" "b"]},
+   :handler (fn [{:keys [a b]}] {:type "text", :text (str (+ a b))})})
+
+(def calc-multiply
+  {:name "multiply",
+   :description "Multiply two numbers",
+   :inputSchema {:type "object",
+                 :properties {"a" {:type "number"}, "b" {:type "number"}},
+                 :required ["a" "b"]},
+   :handler (fn [{:keys [a b]}] {:type "text", :text (str (* a b))})})
+
+(def readme-resource
+  {:description "Project README",
+   :mimeType "text/plain",
+   :name "README",
+   :uri "file:///README.md",
+   :handler
+   (fn [uri] {:uri uri, :mimeType "text/plain", :text "# My Project\nHello!"})})
+
+(def greeting-prompt
+  {:name "greet",
+   :description "Generate a greeting",
+   :arguments [{:name "name", :description "Name to greet", :required true}],
+   :handler (fn [args]
+              {:messages [{:role "assistant",
+                           :content {:type "text",
+                                     :text (str "Hello, " (:name args) "!")}}]})})
+
+;;; Integration Tests
+
+(deftest integration-full-lifecycle
+  (testing "Full client-server lifecycle over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "calc-server",
+                  :version "2.0.0",
+                  :tools [calc-add calc-multiply],
+                  :resources [readme-resource],
+                  :prompts [greeting-prompt]}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :roots [{:uri "file:///home/user/project",
+                           :name "My Project"}]})]
+      (start-pair! pair)
+
+      (testing "1. Initialize connection"
+        (let [result (client/initialize! (:client pair))]
+          (is (= "calc-server" (get-in result [:serverInfo :name])))
+          (is (= "2.0.0" (get-in result [:serverInfo :version])))
+          (is (contains? (:capabilities result) :tools))))
+
+      (testing "2. Ping"
+        (is (= {} (client/ping! (:client pair)))))
+
+      (testing "3. List and call tools"
+        (let [tools-result (client/list-tools! (:client pair))]
+          (is (= 2 (count (:tools tools-result))))
+          (is (= #{"add" "multiply"}
+                 (set (map :name (:tools tools-result))))))
+        (let [add-result (client/call-tool! (:client pair) "add" {:a 3, :b 4})]
+          (is (= "7" (-> add-result :content first :text))))
+        (let [mul-result (client/call-tool! (:client pair)
+                                            "multiply"
+                                            {:a 5, :b 6})]
+          (is (= "30" (-> mul-result :content first :text)))))
+
+      (testing "4. List and read resources"
+        (let [resources-result (client/list-resources! (:client pair))]
+          (is (= 1 (count (:resources resources-result))))
+          (is (= "file:///README.md"
+                 (:uri (first (:resources resources-result))))))
+        (let [read-result (client/read-resource! (:client pair)
+                                                 "file:///README.md")]
+          (is (= "# My Project\nHello!"
+                 (-> read-result :contents first :text)))))
+
+      (testing "5. List and get prompts"
+        (let [prompts-result (client/list-prompts! (:client pair))]
+          (is (= 1 (count (:prompts prompts-result))))
+          (is (= "greet" (:name (first (:prompts prompts-result))))))
+        (let [prompt-result (client/get-prompt! (:client pair)
+                                                "greet"
+                                                {:name "World"})]
+          (is (= "Hello, World!"
+                 (-> prompt-result :messages first :content :text)))))
+
+      (testing "6. Server can request roots from client"
+        (let [roots (server/request-roots-list! (:server pair))]
+          (is (= [{:uri "file:///home/user/project", :name "My Project"}]
+                 roots))))
+
+      (shutdown-pair! pair))))
+
+(deftest integration-version-negotiation
+  (testing "Client and server negotiate protocol version over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "version-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (testing "Known version is echoed back"
+        (let [result (client/initialize!
+                       (:client pair)
+                       {:protocol-version "2024-11-05",
+                        :client-info {:name "test-client", :version "1.0.0"},
+                        :capabilities {}})]
+          (is (= "2024-11-05" (:protocolVersion result)))))
+      (shutdown-pair! pair))
+    (let [pair (create-piped-pair
+                 {:name "version-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (testing "Unknown version returns server's latest"
+        (let [result (client/initialize!
+                       (:client pair)
+                       {:protocol-version "UNKNOWN-VERSION",
+                        :client-info {:name "test-client", :version "1.0.0"},
+                        :capabilities {}})]
+          (is (= "2025-03-26" (:protocolVersion result)))))
+      (shutdown-pair! pair))))
+
+(deftest integration-error-handling
+  (testing "Errors are properly propagated through piped streams"
+    (let [pair (create-piped-pair
+                 {:name "error-server",
+                  :version "1.0.0",
+                  :tools [{:name "failing-tool",
+                           :description "A tool that throws",
+                           :inputSchema {:type "object"},
+                           :handler (fn [_]
+                                      (throw (ex-info "Intentional error" {})))}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Tool error is returned in response"
+        (let [result (client/call-tool! (:client pair) "failing-tool" {})]
+          (is (true? (:isError result)))
+          (is (some? (:content result)))))
+
+      (testing "Calling non-existent tool returns error"
+        (let [result (client/call-tool! (:client pair) "non-existent" {})]
+          (is (some? (:error result)))))
+
+      (shutdown-pair! pair))))
