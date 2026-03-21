@@ -3,7 +3,6 @@
             [clojure.test :refer [deftest is testing]]
             [io.modelcontext.clojure-sdk.mcp.errors :as mcp.errors]
             [io.modelcontext.clojure-sdk.server :as server]
-            [io.modelcontext.clojure-sdk.specs :as specs]
             [io.modelcontext.clojure-sdk.test-helper :as h]
             [lsp4clj.lsp.requests :as lsp.requests]
             [lsp4clj.lsp.responses :as lsp.responses]
@@ -152,7 +151,7 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2024-11-05",
-                  :capabilities {:tools {}, :resources {}, :prompts {}},
+                  :capabilities {:tools {}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server)))
@@ -172,7 +171,7 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2025-03-26",
-                  :capabilities {:tools {}, :resources {}, :prompts {}},
+                  :capabilities {:tools {}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server)))
@@ -192,7 +191,7 @@
         (is (= (lsp.responses/response
                  1
                  {:protocolVersion "2025-03-26",
-                  :capabilities {:tools {}, :resources {}, :prompts {}},
+                  :capabilities {:tools {}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
       (lsp.server/shutdown server))))
@@ -439,6 +438,57 @@
                coerced))
         (is (contains? coerced :structuredContent)
             "Should include structuredContent when tool has outputSchema")))))
+
+(deftest request-roots-list
+  (testing "Server requests roots/list from client"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools [tool-echo]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (testing "Server sends roots/list and receives response"
+        ;; Start the roots/list request from the server in a separate thread
+        (let [result-promise (future (server/request-roots-list! server))]
+          ;; Simulate client response: read the request from output-ch
+          (let [request (h/assert-take (:output-ch server))]
+            (is (= "roots/list" (:method request)))
+            (is (some? (:id request)))
+            ;; Simulate client sending response back
+            (async/put! (:input-ch server)
+                        {:jsonrpc "2.0",
+                         :id (:id request),
+                         :result {:roots [{:uri "file:///home/user/project",
+                                           :name "My Project"}
+                                          {:uri "file:///home/user/docs"}]}}))
+          ;; Get the result
+          (let [roots (deref result-promise 1000 :timeout)]
+            (is (not= :timeout roots))
+            (is (= 2 (count roots)))
+            (is (= "file:///home/user/project" (:uri (first roots))))
+            (is (= "My Project" (:name (first roots))))
+            (is (= "file:///home/user/docs" (:uri (second roots)))))))
+      (lsp.server/shutdown server))))
+
+(deftest roots-list-changed-notification
+  (testing "Server handles roots/list_changed notification and refreshes roots"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools [tool-echo]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; Store the server reference in context for notification handler access
+      (reset! (:protocol context) server)
+      (testing "Context has an empty roots atom"
+        (is (= [] @(:roots context))))
+      (testing "Refresh roots updates the context"
+        (let [result-promise (future (server/refresh-roots! server context))]
+          (let [request (h/assert-take (:output-ch server))]
+            (is (= "roots/list" (:method request)))
+            (async/put! (:input-ch server)
+                        {:jsonrpc "2.0",
+                         :id (:id request),
+                         :result {:roots [{:uri "file:///initial/path"}]}}))
+          (deref result-promise 1000 :timeout)
+          (is (= [{:uri "file:///initial/path"}] @(:roots context)))))
+      (lsp.server/shutdown server))))
 
 (deftest validate-spec-test
   (testing "Validating server specifications"

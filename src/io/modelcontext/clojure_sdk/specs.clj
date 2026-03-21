@@ -160,6 +160,9 @@
 ;; Present if the server offers any tools to call.
 (s/def :capabilities/tools (s/keys :opt-un [:capabilities/listChanged]))
 
+;; Present if the server supports argument autocompletion suggestions.
+(s/def :capabilities/completions (s/keys))
+
 ;; [tag: server_capabilities]
 ;;
 ;; Capabilities that a server may support. Known capabilities are defined here,
@@ -168,7 +171,7 @@
 (s/def ::server-capabilities
   (s/keys :opt-un [:capabilities/experimental :capabilities/logging
                    :capabilities/prompts :capabilities/resources
-                   :capabilities/tools]))
+                   :capabilities/tools :capabilities/completions]))
 (s/def :initialize-response/capabilities ::server-capabilities)
 
 ;;; [tag: implementation_server_client_info]

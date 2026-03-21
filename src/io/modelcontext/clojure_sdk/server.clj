@@ -24,7 +24,7 @@
                                               :spec ~spec
                                               :value ~value
                                               :meta ~fmeta)
-               :else (throw (ex-info "Unknown Conform Error" :args args#))))
+               :else (throw (ex-info "Unknown Conform Error" {:args args#}))))
        ~spec
        ~value)))
 
@@ -61,7 +61,7 @@
      :capabilities server-capabilities,
      :serverInfo server-info}))
 
-(defn- handle-ping [_context _params] (log/trace :fn :handle-ping) "pong")
+(defn- handle-ping [_context _params] (log/trace :fn :handle-ping) {})
 
 (defn- handle-list-tools
   [context _params]
@@ -291,20 +291,79 @@
 ;; @TODO: Implement send-notification "notifications/progress" for long-lived
 ;; requests
 
-;; @TODO: Implement [ref: resource_list_changed_notification] for when list of
-;; resources available to the client changes.
+;; [ref: resource_list_changed_notification]
+(defn notify-resource-list-changed!
+  "Notify the client that the list of resources has changed."
+  [server]
+  (lsp.server/send-notification server
+                                "notifications/resources/list_changed"
+                                {}))
 
-;; @TODO: Implement [ref: resource_updated_notification] for when a resource is
-;; updated at the server
+;; [ref: resource_updated_notification]
+(defn notify-resource-updated!
+  "Notify the client that a specific resource has been updated."
+  [server uri]
+  (lsp.server/send-notification server
+                                "notifications/resources/updated"
+                                {:uri uri}))
 
-;; @TODO: Implement [ref: prompt_list_changed_notification] for when list of
-;; prompts available to the client changes.
+;; [ref: prompt_list_changed_notification]
+(defn notify-prompt-list-changed!
+  "Notify the client that the list of prompts has changed."
+  [server]
+  (lsp.server/send-notification server
+                                "notifications/prompts/list_changed"
+                                {}))
 
-;; @TODO: Implement [ref: tool_list_changed_notification] for when list of
-;; tools available to the client changes.
+;; [ref: tool_list_changed_notification]
+(defn notify-tool-list-changed!
+  "Notify the client that the list of tools has changed."
+  [server]
+  (lsp.server/send-notification server
+                                "notifications/tools/list_changed"
+                                {}))
 
-;; @TODO: Implement [ref: logging_message_notification] for when server wants
-;; to send a logging message to the client.
+;; [ref: logging_message_notification]
+(defn notify-log-message!
+  "Send a logging message to the client."
+  [server level data & {:keys [logger]}]
+  (lsp.server/send-notification server
+                                "notifications/message"
+                                (cond-> {:level level, :data data}
+                                  logger (assoc :logger logger))))
+
+;;; Roots
+;; [ref: roots_support]
+;; The server can request a list of root URIs from the client using roots/list.
+;; The client can notify the server of changes via notifications/roots/list_changed.
+
+(defn request-roots-list!
+  "Send a roots/list request to the client. Returns the list of roots.
+   The server must be passed as the first argument."
+  [server]
+  (let [pending-request (lsp.server/send-request server "roots/list" {})]
+    (:roots (lsp.server/deref-or-cancel pending-request 30000 ::timeout))))
+
+(defn refresh-roots!
+  "Fetch the latest roots from the client and update the context."
+  [server context]
+  (let [roots (request-roots-list! server)]
+    (when (not= ::timeout roots)
+      (log/trace :fn :refresh-roots! :roots roots)
+      (reset! (:roots context) roots))
+    roots))
+
+;; [ref: root_list_changed_notification]
+(defmethod lsp.server/receive-notification "notifications/roots/list_changed"
+  [_ context params]
+  (log/trace :fn :receive-notification
+             :method "notifications/roots/list_changed"
+             :params params)
+  (conform-or-log ::specs/root-list-changed-notification params)
+  ;; When the client notifies that roots have changed, refresh them.
+  ;; The server reference must be stored in context under :protocol.
+  (when-let [server @(:protocol context)]
+    (async/thread (refresh-roots! server context))))
 
 ;;; Server Spec
 
@@ -318,19 +377,22 @@
 
 (defn register-tool!
   [context tool handler]
-  (swap! (:tools context) assoc (:name tool) {:tool tool, :handler handler}))
+  (swap! (:tools context) assoc (:name tool) {:tool tool, :handler handler})
+  (swap! (:capabilities context) assoc :tools {}))
 
 (defn register-resource!
   [context resource handler]
   (swap! (:resources context) assoc
     (:uri resource)
-    {:resource resource, :handler handler}))
+    {:resource resource, :handler handler})
+  (swap! (:capabilities context) assoc :resources {}))
 
 (defn register-prompt!
   [context prompt handler]
   (swap! (:prompts context) assoc
     (:name prompt)
-    {:prompt prompt, :handler handler}))
+    {:prompt prompt, :handler handler})
+  (swap! (:capabilities context) assoc :prompts {}))
 
 (defn- create-empty-context
   [name version]
@@ -348,8 +410,9 @@
    :tools (atom {}),
    :resources (atom {}),
    :prompts (atom {}),
+   :roots (atom []),
    :protocol (atom nil),
-   :capabilities (atom {:tools {}, :resources {}, :prompts {}}),
+   :capabilities (atom {}),
    :connected-clients (atom {})})
 
 (defn create-context!
@@ -391,6 +454,12 @@
                    :server-info {:name name, :version version}))
       (doseq [prompt prompts]
         (register-prompt! context (dissoc prompt :handler) (:handler prompt)))
+      ;; Set capabilities based on what was registered
+      (reset! (:capabilities context)
+              (cond-> {}
+                (seq @(:tools context)) (assoc :tools {})
+                (seq @(:resources context)) (assoc :resources {})
+                (seq @(:prompts context)) (assoc :prompts {})))
       context)))
 
 (defn start!
