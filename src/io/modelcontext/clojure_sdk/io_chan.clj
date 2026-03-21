@@ -19,8 +19,10 @@
 (defn ^:private read-message
   [^java.io.BufferedReader input]
   (try (let [content (.readLine input)]
-         (log/trace :fn :read-message :line content)
-         (json/read-str content))
+         (if (nil? content)
+           :eof
+           (do (log/trace :fn :read-message :line content)
+               (json/read-str content))))
        (catch Exception ex (log/error :fn :read-message :ex ex) :parse-error)))
 
 (defn ^:private kw->camelCaseString
@@ -53,10 +55,11 @@
           (let [msg (read-message reader)]
             (cond
               ;; input closed; also close channel
-              (= msg :parse-error) (do (log/debug :fn :input-stream->input-chan
-                                                  :error true
-                                                  :msg "Parse error or EOF")
-                                       (async/close! messages))
+              (#{:parse-error :eof} msg)
+              (do (log/debug :fn :input-stream->input-chan
+                             :error (= msg :parse-error)
+                             :msg (if (= msg :eof) "EOF" "Parse error"))
+                  (async/close! messages))
               :else (do (log/trace :fn :input-stream->input-chan :msg msg)
                         (when (async/>!! messages msg)
                           ;; wait for next message
