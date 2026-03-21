@@ -235,16 +235,22 @@
 
 ;;; @TODO: Requests to Implement
 
+(defn- handle-list-resource-templates
+  [context _params]
+  (log/trace :fn :handle-list-resource-templates)
+  {:resourceTemplates (vec (vals @(:resource-templates context)))})
+
 ;; [ref: list_resource_templates_request]
 (defmethod lsp.server/receive-request "resources/templates/list"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-request
              :method "resources/templates/list"
              :params params)
   ;; [ref: log_bad_input_params]
   (conform-or-log ::specs/list-resource-templates-request params)
-  (identity ::specs/list-resource-templates-response)
-  ::lsp.server/method-not-found)
+  (->> params
+       (handle-list-resource-templates context)
+       (conform-or-log ::specs/list-resource-templates-response)))
 
 ;; [ref: resource_subscribe_unsubscribe_request]
 (defmethod lsp.server/receive-request "resources/subscribe"
@@ -409,6 +415,11 @@
     {:resource resource, :handler handler})
   (swap! (:capabilities context) assoc :resources {}))
 
+(defn register-resource-template!
+  [context template]
+  (swap! (:resource-templates context) assoc (:uriTemplate template) template)
+  (swap! (:capabilities context) assoc :resources {}))
+
 (defn register-prompt!
   [context prompt handler]
   (swap! (:prompts context) assoc
@@ -431,6 +442,7 @@
   {:server-info {:name name, :version version},
    :tools (atom {}),
    :resources (atom {}),
+   :resource-templates (atom {}),
    :prompts (atom {}),
    :roots (atom []),
    :log-level (atom nil),
@@ -453,7 +465,7 @@
     :resources [{:uri \"resource-uri\"
                  :type \"text\"
                  :handler (fn [uri] ...)}]}"
-  [{:keys [name version tools prompts resources], :as spec}]
+  [{:keys [name version tools prompts resources resource-templates], :as spec}]
   (validate-spec! spec)
   (log/with-context {:action :create-context!}
     (let [context (create-empty-context name version)]
@@ -477,11 +489,14 @@
                    :server-info {:name name, :version version}))
       (doseq [prompt prompts]
         (register-prompt! context (dissoc prompt :handler) (:handler prompt)))
+      (doseq [tmpl resource-templates]
+        (register-resource-template! context tmpl))
       ;; Set capabilities based on what was registered
       (reset! (:capabilities context)
               (cond-> {:logging {}}
                 (seq @(:tools context)) (assoc :tools {})
-                (seq @(:resources context)) (assoc :resources {})
+                (or (seq @(:resources context))
+                    (seq @(:resource-templates context))) (assoc :resources {})
                 (seq @(:prompts context)) (assoc :prompts {})))
       context)))
 

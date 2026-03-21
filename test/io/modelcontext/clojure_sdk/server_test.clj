@@ -79,6 +79,13 @@
    (fn read-resource [uri]
      {:uri uri, :mimeType "text/plain", :text "Hello from Test File"})})
 
+;;; Resource Templates
+(def resource-template-user
+  {:uriTemplate "file:///users/{userId}/profile",
+   :name "User Profile",
+   :description "A user profile resource",
+   :mimeType "text/plain"})
+
 ;;; Example Server Spec
 (def example-server-spec
   {:name "test-server",
@@ -397,6 +404,26 @@
                                                      {:uri
                                                       "file:///invalid.txt"}))
                (h/assert-take (:output-ch server)))))
+      (lsp.server/shutdown server))))
+
+(deftest resource-template-listing
+  (testing "Listing resource templates"
+    (let [server (server/chan-server)
+          context (server/create-context!
+                    {:name "test-server",
+                     :version "1.0.0",
+                     :tools [],
+                     :resource-templates [resource-template-user]})
+          _join (server/start! server context)]
+      (testing "Resource templates list request"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 1 "resources/templates/list" {}))
+        (let [response (h/assert-take (:output-ch server))
+              result (:result response)]
+          (is (= 1 (count (:resourceTemplates result))))
+          (let [tmpl (first (:resourceTemplates result))]
+            (is (= "file:///users/{userId}/profile" (:uriTemplate tmpl)))
+            (is (= "User Profile" (:name tmpl))))))
       (lsp.server/shutdown server))))
 
 (deftest resource-handler-error
