@@ -69,7 +69,8 @@ Read through the python decorator code to double-check if we are doing the right
 ** TODO Implement best practices for resources
 ** TODO Ensure that error handling is correctly done for transports
 ** TODO Implement best practices for transports
-* TODO Implement the entire sampling section of the protocol
+* DONE Implement the entire sampling section of the protocol
+CLOSED: [2025-05-25 Sun]
 * TODO Create a CLI tool for how tools, prompts, resources should be defined
 1. Easily create new projects, in ~deps-new~ style
 2. Organize them properly, making it possible to build servers fast.
