@@ -69,12 +69,15 @@
         client-capabilities (:capabilities params)
         server-info (:server-info context)
         server-capabilities @(:capabilities context)
+        negotiated-version (supported-protocol-version (:protocolVersion params))
         client-id (store-client-info! context client-info client-capabilities)]
     (log/trace :fn :handle-initialize
                :msg "[Initialize] Client connected!"
                :client-info client-info
-               :client-id client-id)
-    {:protocolVersion (supported-protocol-version (:protocolVersion params)),
+               :client-id client-id
+               :protocol-version negotiated-version)
+    (reset! (:protocol-version context) negotiated-version)
+    {:protocolVersion negotiated-version,
      :capabilities server-capabilities,
      :serverInfo server-info}))
 
@@ -585,6 +588,7 @@
    :roots (atom []),
    :log-level (atom nil),
    :protocol (atom nil),
+   :protocol-version (atom nil),
    :capabilities (atom {:logging {}}),
    :connected-clients (atom {})})
 

@@ -227,6 +227,8 @@
                                     :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
+      (testing "Protocol version is stored in context"
+        (is (= "2024-11-05" @(:protocol-version context))))
       (server/shutdown! server)))
   (testing "Connection initialization through initialize, 2025-03-26 version"
     (let [context (server/create-context!
