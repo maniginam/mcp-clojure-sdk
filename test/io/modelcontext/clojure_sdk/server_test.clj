@@ -560,6 +560,17 @@
           (is (= {} (:result response)))))
       (testing "Log level is stored in context"
         (is (= "warning" @(:log-level context))))
+      (testing "Log messages at or above threshold are sent"
+        (server/notify-log-message! server "error" "An error occurred"
+                                    :context context)
+        (let [msg (h/assert-take (:output-ch server))]
+          (is (= "notifications/message" (:method msg)))
+          (is (= "error" (get-in msg [:params :level])))))
+      (testing "Log messages below threshold are suppressed"
+        (server/notify-log-message! server "debug" "Debug info"
+                                    :context context)
+        (is (= :timeout (h/take-or-timeout (:output-ch server) 100))
+            "Debug message should be suppressed when level is warning"))
       (lsp.server/shutdown server))))
 
 (deftest validate-spec-test

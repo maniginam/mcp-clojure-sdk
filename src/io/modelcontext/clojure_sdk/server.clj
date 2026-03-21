@@ -335,13 +335,24 @@
                                 {}))
 
 ;; [ref: logging_message_notification]
+(def ^:private log-level-severity
+  {"debug" 0, "info" 1, "notice" 2, "warning" 3,
+   "error" 4, "critical" 5, "alert" 6, "emergency" 7})
+
 (defn notify-log-message!
-  "Send a logging message to the client."
-  [server level data & {:keys [logger]}]
-  (lsp.server/send-notification server
-                                "notifications/message"
-                                (cond-> {:level level, :data data}
-                                  logger (assoc :logger logger))))
+  "Send a logging message to the client.
+   When context is provided, respects the log level set by the client
+   via logging/setLevel — messages below the threshold are suppressed."
+  [server level data & {:keys [logger context]}]
+  (let [threshold (when context @(:log-level context))
+        should-send? (or (nil? threshold)
+                         (>= (log-level-severity level 0)
+                             (log-level-severity threshold 0)))]
+    (when should-send?
+      (lsp.server/send-notification server
+                                    "notifications/message"
+                                    (cond-> {:level level, :data data}
+                                      logger (assoc :logger logger))))))
 
 ;;; Roots
 ;; [ref: roots_support]
