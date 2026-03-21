@@ -271,6 +271,36 @@
 
       (shutdown-pair! pair))))
 
+(deftest integration-resource-subscriptions
+  (testing "Client can subscribe/unsubscribe to resource updates"
+    (let [pair (create-piped-pair
+                 {:name "sub-server", :version "1.0.0",
+                  :tools [],
+                  :resources [readme-resource]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Subscribe to a resource"
+        (let [result (client/subscribe-resource! (:client pair)
+                                                  "file:///README.md")]
+          (is (= {} result))))
+
+      (testing "Subscription is tracked in server context"
+        (is (contains? @(:subscriptions (:server-context pair))
+                       "file:///README.md")))
+
+      (testing "Unsubscribe from a resource"
+        (let [result (client/unsubscribe-resource! (:client pair)
+                                                    "file:///README.md")]
+          (is (= {} result))))
+
+      (testing "Subscription is removed"
+        (is (not (contains? @(:subscriptions (:server-context pair))
+                            "file:///README.md"))))
+
+      (shutdown-pair! pair))))
+
 (deftest integration-version-negotiation
   (testing "Client and server negotiate protocol version over piped streams"
     (let [pair (create-piped-pair
