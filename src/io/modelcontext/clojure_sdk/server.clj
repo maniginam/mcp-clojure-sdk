@@ -317,18 +317,22 @@
 ;;; Notification Handlers (received from client)
 
 ;; [ref: cancelled_notification]
-;; @TODO: Implement cancellation — cancel in-flight requests when this is received
 (defmethod lsp.server/receive-notification "notifications/cancelled"
-  [_method _context _params]
-  (identity ::specs/cancelled-notification)
-  ::lsp.server/method-not-found)
+  [_ _context params]
+  (log/trace :fn :receive-notification
+             :method "notifications/cancelled"
+             :request-id (:requestId params)
+             :reason (:reason params))
+  (conform-or-log ::specs/cancelled-notification params))
 
 ;; [ref: progress_notification]
-;; @TODO: Implement progress tracking for long-lived requests
 (defmethod lsp.server/receive-notification "notifications/progress"
-  [_method _context _params]
-  (identity ::specs/progress-notification)
-  ::lsp.server/method-not-found)
+  [_ _context params]
+  (log/trace :fn :receive-notification
+             :method "notifications/progress"
+             :progress-token (:progressToken params)
+             :progress (:progress params))
+  (conform-or-log ::specs/progress-notification params))
 
 ;; [ref: resource_list_changed_notification]
 (defn notify-resource-list-changed!
@@ -609,11 +613,20 @@
       context)))
 
 (defn start!
+  "Start the MCP server. Returns a promise that resolves when the server shuts down."
   [server context]
   (log/info :msg "[SERVER] Starting server...")
   (lsp.server/start server context))
 
+(defn shutdown!
+  "Gracefully shut down the MCP server."
+  [server]
+  (log/info :msg "[SERVER] Shutting down server...")
+  (lsp.server/shutdown server))
+
 (defn chan-server
+  "Create a channel-based MCP server for testing. Returns a server with
+   :input-ch and :output-ch for direct message passing."
   []
   (let [input-ch (async/chan 3)
         output-ch (async/chan 3)]
