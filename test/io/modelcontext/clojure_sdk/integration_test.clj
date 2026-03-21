@@ -352,3 +352,27 @@
           (is (some? (:error result)))))
 
       (shutdown-pair! pair))))
+
+(deftest integration-deregistered-tool-call
+  (testing "Calling a deregistered tool returns error"
+    (let [pair (create-piped-pair
+                 {:name "dereg-server", :version "1.0.0", :tools [calc-add]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Tool works before deregistration"
+        (let [result (client/call-tool! (:client pair) "add" {:a 1, :b 2})]
+          (is (= "3" (-> result :content first :text)))))
+
+      (server/deregister-tool! (:server-context pair) "add")
+
+      (testing "Tool call returns error after deregistration"
+        (let [result (client/call-tool! (:client pair) "add" {:a 1, :b 2})]
+          (is (some? (:error result)))))
+
+      (testing "Tool list is empty after deregistration"
+        (let [result (client/list-tools! (:client pair))]
+          (is (= 0 (count (:tools result))))))
+
+      (shutdown-pair! pair))))
