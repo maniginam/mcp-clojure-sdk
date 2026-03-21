@@ -203,3 +203,8 @@
   "Notify the server that the client's root list has changed."
   [client]
   (lsp.server/send-notification client "notifications/roots/list_changed" {}))
+
+(defn shutdown!
+  "Gracefully shut down the MCP client."
+  [client]
+  (lsp.server/shutdown client))

@@ -6,8 +6,7 @@
             [io.modelcontext.clojure-sdk.server :as server]
             [io.modelcontext.clojure-sdk.test-helper :as h]
             [lsp4clj.lsp.requests :as lsp.requests]
-            [lsp4clj.lsp.responses :as lsp.responses]
-            [lsp4clj.server :as lsp.server]))
+            [lsp4clj.lsp.responses :as lsp.responses]))
 
 ;;; Tools
 (def tool-greet
@@ -228,7 +227,7 @@
                                     :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
-      (lsp.server/shutdown server)))
+      (server/shutdown! server)))
   (testing "Connection initialization through initialize, 2025-03-26 version"
     (let [context (server/create-context!
                     {:name "test-server", :version "1.0.0", :tools [tool-echo]})
@@ -249,7 +248,7 @@
                                     :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
-      (lsp.server/shutdown server)))
+      (server/shutdown! server)))
   (testing "Connection initialization through initialize, unknown version"
     (let [context (server/create-context!
                     {:name "test-server", :version "1.0.0", :tools [tool-echo]})
@@ -270,7 +269,7 @@
                                     :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest tool-execution
   (testing "Tool execution through protocol"
@@ -313,7 +312,7 @@
                                     (mcp.errors/body :invalid-params
                                                      {:missing "name"}))
                (h/assert-take (:output-ch server)))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest prompt-listing
   (testing "Listing available prompts"
@@ -354,7 +353,7 @@
                   :description "The code to write poetry about",
                   :required true}]
                 (:arguments poem))))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest prompt-getting
   (testing "Getting specific prompts"
@@ -416,7 +415,7 @@
                                     (mcp.errors/body :invalid-params
                                                      {:missing "name"}))
                (h/assert-take (:output-ch server)))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest resource-listing
   (testing "Listing available resources"
@@ -444,7 +443,7 @@
             (is (= "Test Data" (:name json-resource)))
             (is (= "Test JSON data" (:description json-resource)))
             (is (= "application/json" (:mimeType json-resource)))))
-        (lsp.server/shutdown server)))))
+        (server/shutdown! server)))))
 
 (deftest resource-reading
   (testing "Reading resources"
@@ -495,7 +494,7 @@
                                     (mcp.errors/body :invalid-params
                                                      {:missing "uri"}))
                (h/assert-take (:output-ch server)))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest resource-template-listing
   (testing "Listing resource templates"
@@ -515,7 +514,7 @@
           (let [tmpl (first (:resourceTemplates result))]
             (is (= "file:///users/{userId}/profile" (:uriTemplate tmpl)))
             (is (= "User Profile" (:name tmpl))))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest completion-complete
   (testing "Completion/complete returns completions for prompt arguments"
@@ -567,7 +566,7 @@
         (let [response (h/assert-take (:output-ch server))
               result (:result response)]
           (is (= [] (get-in result [:completion :values])))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest resource-subscribe-unsubscribe
   (testing "Client can subscribe and unsubscribe to resource updates"
@@ -595,7 +594,7 @@
           (is (= {} (:result response)))))
       (testing "Subscription is removed"
         (is (not (contains? @(:subscriptions context) "file:///test.txt"))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest resource-handler-error
   (testing "Resource handler that throws returns error response"
@@ -623,7 +622,7 @@
             "Should flag the result as an error")
         (is (some? (:contents result))
             "Should include error content"))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest prompt-handler-error
   (testing "Prompt handler that throws returns error response"
@@ -649,7 +648,7 @@
             "Should flag the result as an error")
         (is (some? (:messages result))
             "Should include error messages"))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest coerce-tool-response-test
   (testing "Coercing tool responses"
@@ -718,7 +717,7 @@
             (is (= "file:///home/user/project" (:uri (first roots))))
             (is (= "My Project" (:name (first roots))))
             (is (= "file:///home/user/docs" (:uri (second roots)))))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest roots-list-changed-notification
   (testing "Server handles roots/list_changed notification and refreshes roots"
@@ -740,7 +739,7 @@
                          :result {:roots [{:uri "file:///initial/path"}]}}))
           (deref result-promise 1000 :timeout)
           (is (= [{:uri "file:///initial/path"}] @(:roots context)))))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest set-logging-level
   (testing "Client can set the server's logging level"
@@ -769,7 +768,7 @@
                                     :context context)
         (is (= :timeout (h/take-or-timeout (:output-ch server) 100))
             "Debug message should be suppressed when level is warning"))
-      (lsp.server/shutdown server))))
+      (server/shutdown! server))))
 
 (deftest validate-spec-test
   (testing "Validating server specifications"

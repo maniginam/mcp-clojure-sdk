@@ -47,8 +47,8 @@
 
 (defn shutdown-pair!
   [{:keys [server client]}]
-  (lsp.server/shutdown client)
-  (lsp.server/shutdown server))
+  (client/shutdown! client)
+  (server/shutdown! server))
 
 ;;; Test tools and resources
 
