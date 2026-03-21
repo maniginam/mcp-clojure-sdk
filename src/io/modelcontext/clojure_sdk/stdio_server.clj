@@ -18,6 +18,7 @@
 (defn start!
   [server spec]
   (let [context (assoc (core/create-context! spec) :server server)]
+    (reset! (:protocol context) server)
     (log/info :msg "[STDIO SERVER] Starting server...")
     (monitor-server-logs (:log-ch server))
     (lsp.server/start server context)))

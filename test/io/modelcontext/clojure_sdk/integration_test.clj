@@ -1,7 +1,8 @@
 (ns io.modelcontext.clojure-sdk.integration-test
   "Integration tests that verify end-to-end client-server communication
    using piped streams to simulate stdio transport."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.string]
+            [clojure.test :refer [deftest is testing]]
             [io.modelcontext.clojure-sdk.client :as client]
             [io.modelcontext.clojure-sdk.io-chan :as mcp.io-chan]
             [io.modelcontext.clojure-sdk.server :as server]
@@ -175,6 +176,98 @@
           (is (= "test-model" (:model result)))
           (is (= "Sampled: What is 2+2?"
                  (get-in result [:content :text])))))
+
+      (shutdown-pair! pair))))
+
+(deftest integration-dynamic-registration
+  (testing "Dynamically register and deregister tools at runtime"
+    (let [pair (create-piped-pair
+                 {:name "dynamic-server", :version "1.0.0", :tools [calc-add]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Initially has one tool"
+        (let [result (client/list-tools! (:client pair))]
+          (is (= 1 (count (:tools result))))
+          (is (= "add" (:name (first (:tools result)))))))
+
+      (testing "Register a new tool at runtime"
+        (server/register-tool!
+          (:server-context pair)
+          {:name "subtract",
+           :description "Subtract two numbers",
+           :inputSchema {:type "object",
+                         :properties {"a" {:type "number"}, "b" {:type "number"}}}}
+          (fn [{:keys [a b]}] {:type "text", :text (str (- a b))}))
+        (let [result (client/list-tools! (:client pair))]
+          (is (= 2 (count (:tools result))))))
+
+      (testing "Call the dynamically registered tool"
+        (let [result (client/call-tool! (:client pair) "subtract" {:a 10, :b 3})]
+          (is (= "7" (-> result :content first :text)))))
+
+      (testing "Deregister a tool at runtime"
+        (server/deregister-tool! (:server-context pair) "subtract")
+        (let [result (client/list-tools! (:client pair))]
+          (is (= 1 (count (:tools result))))
+          (is (= "add" (:name (first (:tools result)))))))
+
+      (shutdown-pair! pair))))
+
+(deftest integration-logging-level
+  (testing "Client can set server logging level over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "log-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Set logging level"
+        (let [result (client/set-logging-level! (:client pair) "warning")]
+          (is (= {} result))))
+
+      (testing "Level is stored in server context"
+        (is (= "warning" @(:log-level (:server-context pair)))))
+
+      (shutdown-pair! pair))))
+
+(deftest integration-completions
+  (testing "Client can request completions from server over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "completion-server", :version "1.0.0",
+                  :tools [],
+                  :prompts [{:name "greet",
+                             :description "Greet someone",
+                             :arguments [{:name "name", :required true}],
+                             :handler (fn [args]
+                                        {:messages
+                                         [{:role "assistant",
+                                           :content {:type "text",
+                                                     :text (str "Hi " (:name args))}}]})}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (server/register-completion!
+        (:server-context pair) "greet" "name"
+        (fn [partial]
+          {:values (filterv #(clojure.string/starts-with? % partial)
+                            ["Alice" "Bob" "Charlie"])}))
+
+      (testing "Returns matching completions"
+        (let [result (client/complete!
+                       (:client pair)
+                       {:type "ref/prompt", :name "greet"}
+                       {:name "name", :value "A"})]
+          (is (= ["Alice"] (get-in result [:completion :values])))))
+
+      (testing "Returns empty for no matches"
+        (let [result (client/complete!
+                       (:client pair)
+                       {:type "ref/prompt", :name "greet"}
+                       {:name "name", :value "Z"})]
+          (is (= [] (get-in result [:completion :values])))))
 
       (shutdown-pair! pair))))
 
