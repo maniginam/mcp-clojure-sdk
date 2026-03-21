@@ -271,6 +271,46 @@
                (h/take-or-timeout (:output-ch server) 200))))
       (server/shutdown! server))))
 
+(deftest pagination-in-list-responses
+  (testing "List tools with fewer items than page size returns no cursor"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools [tool-echo]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server) (lsp.requests/request 1 "tools/list" {}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= 1 (count (:tools result))))
+        (is (nil? (:nextCursor result))
+            "Should not include nextCursor when all items fit in one page"))
+      (server/shutdown! server)))
+  (testing "List resources with no cursor returns all items"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resources [resource-test-file resource-test-json]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/list" {}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= 2 (count (:resources result))))
+        (is (nil? (:nextCursor result))))
+      (server/shutdown! server)))
+  (testing "List prompts with no cursor returns all items"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :prompts [prompt-analyze-code prompt-poem-about-code]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "prompts/list" {}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= 2 (count (:prompts result))))
+        (is (nil? (:nextCursor result))))
+      (server/shutdown! server))))
+
 (deftest tool-execution
   (testing "Tool execution through protocol"
     (let [context (server/create-context!

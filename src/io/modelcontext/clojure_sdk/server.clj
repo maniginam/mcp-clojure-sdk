@@ -28,6 +28,23 @@
        ~spec
        ~value)))
 
+;;; Pagination
+
+(def ^:private default-page-size 50)
+
+(defn- paginate
+  "Apply cursor-based pagination to a collection of items.
+   cursor is a base64-encoded offset string. Returns {:items [...] :nextCursor ...}."
+  [items cursor]
+  (let [offset (if cursor
+                 (try (Long/parseLong cursor) (catch Exception _ 0))
+                 0)
+        page (vec (take default-page-size (drop offset items)))
+        next-offset (+ offset (count page))
+        has-more? (< next-offset (count items))]
+    (cond-> {:items page}
+      has-more? (assoc :nextCursor (str next-offset)))))
+
 ;;; Helper functions for handling various requests
 
 (defn store-client-info!
@@ -64,9 +81,12 @@
 (defn- handle-ping [_context _params] (log/trace :fn :handle-ping) {})
 
 (defn- handle-list-tools
-  [context _params]
+  [context params]
   (log/trace :fn :handle-list-tools)
-  {:tools (mapv :tool (vals @(:tools context)))})
+  (let [all-tools (mapv :tool (vals @(:tools context)))
+        {:keys [items nextCursor]} (paginate all-tools (:cursor params))]
+    (cond-> {:tools items}
+      nextCursor (assoc :nextCursor nextCursor))))
 
 (defn coerce-tool-response
   "Coerces a tool response into the expected format.
@@ -98,9 +118,12 @@
             {:error (mcp.errors/body :tool-not-found {:tool-name tool-name})}))))))
 
 (defn- handle-list-resources
-  [context _params]
+  [context params]
   (log/trace :fn :handle-list-resources)
-  {:resources (mapv :resource (vals @(:resources context)))})
+  (let [all-resources (mapv :resource (vals @(:resources context)))
+        {:keys [items nextCursor]} (paginate all-resources (:cursor params))]
+    (cond-> {:resources items}
+      nextCursor (assoc :nextCursor nextCursor))))
 
 (defn- handle-read-resource
   [context params]
@@ -122,9 +145,12 @@
               {:error (mcp.errors/body :resource-not-found {:uri uri})}))))))
 
 (defn- handle-list-prompts
-  [context _params]
+  [context params]
   (log/trace :fn :handle-list-prompts)
-  {:prompts (mapv :prompt (vals @(:prompts context)))})
+  (let [all-prompts (mapv :prompt (vals @(:prompts context)))
+        {:keys [items nextCursor]} (paginate all-prompts (:cursor params))]
+    (cond-> {:prompts items}
+      nextCursor (assoc :nextCursor nextCursor))))
 
 (defn- handle-get-prompt
   [context params]
@@ -242,9 +268,12 @@
 ;;; Additional Request Handlers
 
 (defn- handle-list-resource-templates
-  [context _params]
+  [context params]
   (log/trace :fn :handle-list-resource-templates)
-  {:resourceTemplates (vec (vals @(:resource-templates context)))})
+  (let [all-templates (vec (vals @(:resource-templates context)))
+        {:keys [items nextCursor]} (paginate all-templates (:cursor params))]
+    (cond-> {:resourceTemplates items}
+      nextCursor (assoc :nextCursor nextCursor))))
 
 ;; [ref: list_resource_templates_request]
 (defmethod lsp.server/receive-request "resources/templates/list"
