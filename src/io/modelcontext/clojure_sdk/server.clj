@@ -475,6 +475,25 @@
     {:prompt prompt, :handler handler})
   (swap! (:capabilities context) assoc :prompts {:listChanged true}))
 
+(defn deregister-tool!
+  [context tool-name]
+  (swap! (:tools context) dissoc tool-name)
+  (when (empty? @(:tools context))
+    (swap! (:capabilities context) dissoc :tools)))
+
+(defn deregister-resource!
+  [context uri]
+  (swap! (:resources context) dissoc uri)
+  (when (and (empty? @(:resources context))
+             (empty? @(:resource-templates context)))
+    (swap! (:capabilities context) dissoc :resources)))
+
+(defn deregister-prompt!
+  [context prompt-name]
+  (swap! (:prompts context) dissoc prompt-name)
+  (when (empty? @(:prompts context))
+    (swap! (:capabilities context) dissoc :prompts)))
+
 (defn- create-empty-context
   [name version]
   (log/trace :fn :create-empty-context)

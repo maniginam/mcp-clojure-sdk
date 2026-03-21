@@ -142,6 +142,49 @@
       (is (= 1 (count @(:tools context))))
       (is (get @(:tools context) "test-tool")))))
 
+(deftest tool-deregistration
+  (testing "Deregistering a tool removes it and updates capabilities"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [tool-greet tool-echo]})]
+      (is (= 2 (count @(:tools context))))
+      (is (contains? @(:capabilities context) :tools))
+      (server/deregister-tool! context "greet")
+      (is (= 1 (count @(:tools context))))
+      (is (nil? (get @(:tools context) "greet")))
+      (is (get @(:tools context) "echo"))
+      (server/deregister-tool! context "echo")
+      (is (= 0 (count @(:tools context))))
+      (is (not (contains? @(:capabilities context) :tools))))))
+
+(deftest resource-deregistration
+  (testing "Deregistering a resource removes it and updates capabilities"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resources [resource-test-json resource-test-file]})]
+      (is (= 2 (count @(:resources context))))
+      (is (contains? @(:capabilities context) :resources))
+      (server/deregister-resource! context "file:///data.json")
+      (is (= 1 (count @(:resources context))))
+      (is (nil? (get @(:resources context) "file:///data.json")))
+      (server/deregister-resource! context "file:///test.txt")
+      (is (= 0 (count @(:resources context))))
+      (is (not (contains? @(:capabilities context) :resources))))))
+
+(deftest prompt-deregistration
+  (testing "Deregistering a prompt removes it and updates capabilities"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :prompts [prompt-analyze-code prompt-poem-about-code]})]
+      (is (= 2 (count @(:prompts context))))
+      (is (contains? @(:capabilities context) :prompts))
+      (server/deregister-prompt! context "analyze-code")
+      (is (= 1 (count @(:prompts context))))
+      (is (nil? (get @(:prompts context) "analyze-code")))
+      (server/deregister-prompt! context "poem-about-code")
+      (is (= 0 (count @(:prompts context))))
+      (is (not (contains? @(:capabilities context) :prompts))))))
+
 (deftest initialization
   (testing "Connection initialization through initialize, 2024-11-05 version"
     (let [context (server/create-context!
