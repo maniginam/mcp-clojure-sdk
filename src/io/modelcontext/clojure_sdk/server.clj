@@ -447,11 +447,15 @@
   server-spec)
 
 (defn register-tool!
+  "Register a tool with the server context. tool is a map with :name, :description,
+   :inputSchema (and optionally :outputSchema). handler is (fn [arguments] response)."
   [context tool handler]
   (swap! (:tools context) assoc (:name tool) {:tool tool, :handler handler})
   (swap! (:capabilities context) assoc :tools {:listChanged true}))
 
 (defn register-resource!
+  "Register a resource with the server context. resource is a map with :uri, :name,
+   :description, :mimeType. handler is (fn [uri] content-map)."
   [context resource handler]
   (swap! (:resources context) assoc
     (:uri resource)
@@ -460,6 +464,8 @@
                                                     :listChanged true}))
 
 (defn register-resource-template!
+  "Register a resource template. template is a map with :uriTemplate, :name,
+   :description, :mimeType. Templates describe URI patterns per RFC 6570."
   [context template]
   (swap! (:resource-templates context) assoc (:uriTemplate template) template)
   (swap! (:capabilities context) assoc :resources {:subscribe true,
@@ -475,6 +481,8 @@
   (swap! (:capabilities context) assoc :completions {}))
 
 (defn register-prompt!
+  "Register a prompt with the server context. prompt is a map with :name,
+   :description, :arguments. handler is (fn [arguments] {:messages [...]})."
   [context prompt handler]
   (swap! (:prompts context) assoc
     (:name prompt)
@@ -482,12 +490,14 @@
   (swap! (:capabilities context) assoc :prompts {:listChanged true}))
 
 (defn deregister-tool!
+  "Remove a tool by name. Removes :tools capability when no tools remain."
   [context tool-name]
   (swap! (:tools context) dissoc tool-name)
   (when (empty? @(:tools context))
     (swap! (:capabilities context) dissoc :tools)))
 
 (defn deregister-resource!
+  "Remove a resource by URI. Removes :resources capability when no resources or templates remain."
   [context uri]
   (swap! (:resources context) dissoc uri)
   (when (and (empty? @(:resources context))
@@ -495,12 +505,15 @@
     (swap! (:capabilities context) dissoc :resources)))
 
 (defn deregister-prompt!
+  "Remove a prompt by name. Removes :prompts capability when no prompts remain."
   [context prompt-name]
   (swap! (:prompts context) dissoc prompt-name)
   (when (empty? @(:prompts context))
     (swap! (:capabilities context) dissoc :prompts)))
 
 (defn deregister-resource-template!
+  "Remove a resource template by URI template. Removes :resources capability when
+   no resources or templates remain."
   [context uri-template]
   (swap! (:resource-templates context) dissoc uri-template)
   (when (and (empty? @(:resources context))
@@ -508,6 +521,8 @@
     (swap! (:capabilities context) dissoc :resources)))
 
 (defn deregister-completion!
+  "Remove a completion handler for a specific ref-key and arg-name. Removes
+   :completions capability when no completion handlers remain."
   [context ref-key arg-name]
   (swap! (:completions context) update ref-key dissoc arg-name)
   (swap! (:completions context)
