@@ -279,14 +279,32 @@
   (reset! (:log-level context) (:level params))
   {})
 
+(defn- handle-complete
+  [context params]
+  (log/trace :fn :handle-complete :ref (:ref params) :argument (:argument params))
+  (let [completions @(:completions context)
+        ref (:ref params)
+        ref-type (:type ref)
+        ref-key (case ref-type
+                  "ref/prompt" (:name ref)
+                  "ref/resource" (:uri ref)
+                  nil)
+        arg-name (get-in params [:argument :name])
+        arg-value (get-in params [:argument :value])
+        handler (get-in completions [ref-key arg-name])]
+    (if handler
+      {:completion (handler arg-value)}
+      {:completion {:values []}})))
+
 ;; [ref: complete_request]
 (defmethod lsp.server/receive-request "completion/complete"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-request :method "completion/complete" :params params)
   ;; [ref: log_bad_input_params]
   (conform-or-log ::specs/complete-request params)
-  (identity ::specs/complete-response)
-  ::lsp.server/method-not-found)
+  (->> params
+       (handle-complete context)
+       (conform-or-log ::specs/complete-response)))
 
 ;;; @TODO: Notifications to Implement
 
@@ -420,6 +438,15 @@
   (swap! (:resource-templates context) assoc (:uriTemplate template) template)
   (swap! (:capabilities context) assoc :resources {}))
 
+(defn register-completion!
+  "Register a completion handler for a prompt or resource argument.
+   ref-key is the prompt name or resource URI.
+   arg-name is the argument name to complete.
+   handler is (fn [partial-value] {:values [...] :total n :hasMore bool})."
+  [context ref-key arg-name handler]
+  (swap! (:completions context) assoc-in [ref-key arg-name] handler)
+  (swap! (:capabilities context) assoc :completions {}))
+
 (defn register-prompt!
   [context prompt handler]
   (swap! (:prompts context) assoc
@@ -444,6 +471,7 @@
    :resources (atom {}),
    :resource-templates (atom {}),
    :prompts (atom {}),
+   :completions (atom {}),
    :roots (atom []),
    :log-level (atom nil),
    :protocol (atom nil),

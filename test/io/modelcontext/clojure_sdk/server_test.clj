@@ -1,5 +1,6 @@
 (ns io.modelcontext.clojure-sdk.server-test
   (:require [clojure.core.async :as async]
+            [clojure.string]
             [clojure.test :refer [deftest is testing]]
             [io.modelcontext.clojure-sdk.mcp.errors :as mcp.errors]
             [io.modelcontext.clojure-sdk.server :as server]
@@ -424,6 +425,58 @@
           (let [tmpl (first (:resourceTemplates result))]
             (is (= "file:///users/{userId}/profile" (:uriTemplate tmpl)))
             (is (= "User Profile" (:name tmpl))))))
+      (lsp.server/shutdown server))))
+
+(deftest completion-complete
+  (testing "Completion/complete returns completions for prompt arguments"
+    (let [server (server/chan-server)
+          context (server/create-context!
+                    {:name "test-server",
+                     :version "1.0.0",
+                     :tools [],
+                     :prompts [{:name "greet",
+                                :description "Greet someone",
+                                :arguments [{:name "name", :required true}],
+                                :handler (fn [args]
+                                           {:messages
+                                            [{:role "assistant",
+                                              :content
+                                              {:type "text",
+                                               :text (str "Hello, "
+                                                          (:name args))}}]})}]})
+          _join (server/start! server context)]
+      (server/register-completion!
+        context "greet" "name"
+        (fn [partial-value]
+          {:values (filterv #(clojure.string/starts-with? % partial-value)
+                            ["Alice" "Bob" "Charlie"])}))
+      (testing "Returns matching completions"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request
+                      1 "completion/complete"
+                      {:ref {:type "ref/prompt", :name "greet"},
+                       :argument {:name "name", :value "A"}}))
+        (let [response (h/assert-take (:output-ch server))
+              result (:result response)]
+          (is (= ["Alice"] (get-in result [:completion :values])))))
+      (testing "Returns empty for no matches"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request
+                      2 "completion/complete"
+                      {:ref {:type "ref/prompt", :name "greet"},
+                       :argument {:name "name", :value "Z"}}))
+        (let [response (h/assert-take (:output-ch server))
+              result (:result response)]
+          (is (= [] (get-in result [:completion :values])))))
+      (testing "Returns empty for unregistered completion"
+        (async/put! (:input-ch server)
+                    (lsp.requests/request
+                      3 "completion/complete"
+                      {:ref {:type "ref/prompt", :name "unknown"},
+                       :argument {:name "arg", :value "x"}}))
+        (let [response (h/assert-take (:output-ch server))
+              result (:result response)]
+          (is (= [] (get-in result [:completion :values])))))
       (lsp.server/shutdown server))))
 
 (deftest resource-handler-error
