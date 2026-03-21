@@ -56,9 +56,11 @@
 (declare tool-validity ;; [ref: clj_kondo_needs_forward_declaration]
          resource-validity
          prompt-validity
+         root-validity
          invalid-tool-rejection
          invalid-resource-rejection
-         invalid-prompt-rejection)
+         invalid-prompt-rejection
+         invalid-root-rejection)
 
 (defspec tool-validity
          100
@@ -129,6 +131,19 @@
          100
          (prop/for-all [prompt gen-prompt] (specs/valid-prompt? prompt)))
 
+;; Root property tests
+(def gen-root-with-name
+  (gen/hash-map :uri gen-uri :name gen/string-alphanumeric))
+
+(def gen-root-basic (gen/hash-map :uri gen-uri))
+
+(def gen-root
+  (gen/frequency [[7 gen-root-with-name] [3 gen-root-basic]]))
+
+(defspec root-validity
+         100
+         (prop/for-all [root gen-root] (specs/valid-root? root)))
+
 ;; Mutation tests - verify that invalid data is rejected
 (defspec invalid-tool-rejection
          100
@@ -156,6 +171,14 @@
               :name (gen/one-of [gen/small-integer gen/boolean gen/ratio])
               :arguments (gen/one-of [gen/small-integer gen/string gen/ratio]))]
            (not (specs/valid-prompt? prompt))))
+
+(defspec invalid-root-rejection
+         100
+         (prop/for-all
+           [root
+            (gen/hash-map
+              :uri (gen/one-of [gen/small-integer gen/boolean gen/ratio]))]
+           (not (specs/valid-root? root))))
 
 ;;; [tag: clj_kondo_needs_forward_declaration]
 ;;;
