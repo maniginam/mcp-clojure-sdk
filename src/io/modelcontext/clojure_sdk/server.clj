@@ -233,7 +233,7 @@
        (handle-get-prompt context)
        (conform-or-log ::specs/get-prompt-response)))
 
-;;; @TODO: Requests to Implement
+;;; Additional Request Handlers
 
 (defn- handle-list-resource-templates
   [context _params]
@@ -308,25 +308,21 @@
        (handle-complete context)
        (conform-or-log ::specs/complete-response)))
 
-;;; @TODO: Notifications to Implement
+;;; Notification Handlers (received from client)
 
 ;; [ref: cancelled_notification]
+;; @TODO: Implement cancellation — cancel in-flight requests when this is received
 (defmethod lsp.server/receive-notification "notifications/cancelled"
   [_method _context _params]
   (identity ::specs/cancelled-notification)
   ::lsp.server/method-not-found)
 
-;; @TODO: Implement send-notification "notifications/cancelled" when request is
-;; cancelled
-
 ;; [ref: progress_notification]
+;; @TODO: Implement progress tracking for long-lived requests
 (defmethod lsp.server/receive-notification "notifications/progress"
   [_method _context _params]
   (identity ::specs/progress-notification)
   ::lsp.server/method-not-found)
-
-;; @TODO: Implement send-notification "notifications/progress" for long-lived
-;; requests
 
 ;; [ref: resource_list_changed_notification]
 (defn notify-resource-list-changed!
