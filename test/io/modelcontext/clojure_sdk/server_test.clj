@@ -399,6 +399,60 @@
                (h/assert-take (:output-ch server)))))
       (lsp.server/shutdown server))))
 
+(deftest resource-handler-error
+  (testing "Resource handler that throws returns error response"
+    (let [failing-resource {:uri "file:///failing",
+                            :name "Failing Resource",
+                            :description "A resource that throws",
+                            :mimeType "text/plain",
+                            :handler (fn [_uri]
+                                       (throw (ex-info "Resource read failed"
+                                                       {})))}
+          server (server/chan-server)
+          context (server/create-context! {:name "test-server",
+                                           :version "1.0.0",
+                                           :tools [],
+                                           :resources [failing-resource]})
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1
+                                        "resources/read"
+                                        {:uri "file:///failing"}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (some? result) "Should return a result, not a protocol error")
+        (is (true? (:isError result))
+            "Should flag the result as an error")
+        (is (some? (:contents result))
+            "Should include error content"))
+      (lsp.server/shutdown server))))
+
+(deftest prompt-handler-error
+  (testing "Prompt handler that throws returns error response"
+    (let [failing-prompt {:name "failing-prompt",
+                          :description "A prompt that throws",
+                          :handler (fn [_args]
+                                     (throw (ex-info "Prompt generation failed"
+                                                     {})))}
+          server (server/chan-server)
+          context (server/create-context! {:name "test-server",
+                                           :version "1.0.0",
+                                           :tools [],
+                                           :prompts [failing-prompt]})
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1
+                                        "prompts/get"
+                                        {:name "failing-prompt"}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (some? result) "Should return a result, not a protocol error")
+        (is (true? (:isError result))
+            "Should flag the result as an error")
+        (is (some? (:messages result))
+            "Should include error messages"))
+      (lsp.server/shutdown server))))
+
 (deftest coerce-tool-response-test
   (testing "Coercing tool responses"
     (testing "Tool with sequential response"

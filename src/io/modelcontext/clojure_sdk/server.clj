@@ -106,7 +106,12 @@
   (let [resources @(:resources context)
         uri (:uri params)]
     (if-let [{:keys [handler]} (get resources uri)]
-      {:contents [(handler uri)]}
+      (try {:contents [(handler uri)]}
+           (catch Exception e
+             {:contents [{:uri uri,
+                          :mimeType "text/plain",
+                          :text (str "Error: " (.getMessage e))}],
+              :isError true}))
       (do (log/debug :fn :handle-read-resource
                      :resource uri
                      :error :resource-not-found)
@@ -126,7 +131,12 @@
         prompt-name (:name params)
         arguments (:arguments params)]
     (if-let [{:keys [handler]} (get prompts prompt-name)]
-      (handler arguments)
+      (try (handler arguments)
+           (catch Exception e
+             {:messages [{:role "assistant",
+                          :content {:type "text",
+                                    :text (str "Error: " (.getMessage e))}}],
+              :isError true}))
       (do (log/debug :fn :handle-get-prompt
                      :prompt prompt-name
                      :error :prompt-not-found)
