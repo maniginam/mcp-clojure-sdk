@@ -327,3 +327,30 @@
       (let [result (client/ping! (:client pair))]
         (is (= {} result)))
       (shutdown-pair! pair))))
+
+(deftest sampling-request
+  (testing "Server can request sampling from client"
+    (let [pair (create-connected-pair
+                 {:name "test-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :sampling-handler
+                  (fn [params]
+                    {:role "assistant",
+                     :content {:type "text",
+                               :text (str "Echo: "
+                                          (-> params :messages first :content
+                                              :text))},
+                     :model "test-model",
+                     :stopReason "endTurn"})})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (server/request-sampling!
+                     (:server pair)
+                     {:messages [{:role "user",
+                                  :content {:type "text",
+                                            :text "Hello"}}],
+                      :maxTokens 100})]
+        (is (some? result))
+        (is (= "test-model" (:model result)))
+        (is (= "Echo: Hello" (get-in result [:content :text]))))
+      (shutdown-pair! pair))))

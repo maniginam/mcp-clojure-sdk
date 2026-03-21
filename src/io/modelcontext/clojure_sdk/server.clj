@@ -409,6 +409,27 @@
   (when-let [server @(:protocol context)]
     (async/thread (refresh-roots! server context))))
 
+;;; Sampling
+;; [ref: sampling_create_message]
+;; The server can request the client to sample an LLM.
+
+(defn request-sampling!
+  "Send a sampling/createMessage request to the client.
+   params should contain:
+   - :messages - vector of sampling messages [{:role \"user\" :content {...}}]
+   - :maxTokens - maximum tokens to sample
+   Optional:
+   - :modelPreferences - model selection preferences
+   - :systemPrompt - system prompt string
+   - :includeContext - \"none\", \"thisServer\", or \"allServers\"
+   - :temperature - sampling temperature
+   - :stopSequences - vector of stop sequence strings
+   - :metadata - provider-specific metadata
+   Returns the client's sampling response or nil on timeout."
+  [server params]
+  (let [pending (lsp.server/send-request server "sampling/createMessage" params)]
+    (lsp.server/deref-or-cancel pending 60000 nil)))
+
 ;;; Server Spec
 
 (defn validate-spec!

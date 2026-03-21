@@ -10,11 +10,15 @@
    opts may contain:
    - :client-info - {:name \"..\" :version \"..\"} identifying this client
    - :roots - vector of root maps [{:uri \"file://..\" :name \"..\"} ...]
-   - :capabilities - client capabilities map"
-  [{:keys [client-info roots capabilities]}]
+   - :capabilities - client capabilities map
+   - :sampling-handler - (fn [params] response) for sampling/createMessage requests"
+  [{:keys [client-info roots capabilities sampling-handler]}]
   {:client-info (or client-info {:name "mcp-clojure-client", :version "1.0.0"}),
    :roots (atom (or roots [])),
-   :capabilities (or capabilities {:roots {:listChanged true}}),
+   :capabilities (or capabilities
+                     (cond-> {:roots {:listChanged true}}
+                       sampling-handler (assoc :sampling {}))),
+   :sampling-handler sampling-handler,
    :server-info (atom nil),
    :server-capabilities (atom nil)})
 
@@ -26,6 +30,20 @@
   [_ context _params]
   (log/trace :fn :receive-request :method "roots/list")
   {:roots @(:roots context)})
+
+;; [ref: sampling_create_message]
+;; The server may request the client to sample an LLM
+(defmethod lsp.server/receive-request "sampling/createMessage"
+  [_ context params]
+  (log/trace :fn :receive-request
+             :method "sampling/createMessage"
+             :params params)
+  (if-let [handler (:sampling-handler context)]
+    (handler params)
+    (do (log/error :fn :receive-request
+                   :method "sampling/createMessage"
+                   :error "No sampling handler registered")
+        {:error {:code -1, :message "Sampling not supported by this client"}})))
 
 ;;; Client-side notification handlers
 ;; These handle notifications that the SERVER sends TO the client.

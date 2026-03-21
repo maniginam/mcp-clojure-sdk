@@ -34,8 +34,8 @@ CLOSED: [2025-05-25 Sun]
 CLOCK: [2025-05-25 Sun 11:41]--[2025-05-25 Sun 12:32] =>  0:51
 :END:
 
-* TODO Update the README of mcp-clojure-sdk.
-Refer to typescript-sdk as a reference
+* DONE Update the README of mcp-clojure-sdk.
+CLOSED: [2025-05-25 Sun]
 
 * TODO Write an example mcp-client-tool to run mcp-servers locally and list what they do/don't provide
 ** TODO Support servers launched using npx/node
