@@ -231,11 +231,42 @@ The SDK also provides an MCP client for connecting to MCP servers:
   (client/call-tool! client "add" {:a 1 :b 2})
   (client/list-resources! client)
   (client/read-resource! client "file:///README.md")
+  (client/list-resource-templates! client)
+  (client/subscribe-resource! client "file:///README.md")
+  (client/unsubscribe-resource! client "file:///README.md")
   (client/list-prompts! client)
   (client/get-prompt! client "greet" {:name "World"})
+  (client/complete! client
+    {:type "ref/prompt" :name "greet"}
+    {:name "name" :value "A"})
+  (client/set-logging-level! client "warning")
+  (client/ping! client)
 
   ;; Disconnect
   (stdio-client/disconnect! conn))
+```
+
+### Dynamic Registration
+
+Tools, resources, prompts, and completions can be registered and
+deregistered at runtime:
+
+```clojure
+(require '[io.modelcontext.clojure-sdk.server :as server])
+
+;; Register dynamically
+(server/register-tool! context
+  {:name "new-tool"
+   :description "A dynamically added tool"
+   :inputSchema {:type "object" :properties {"x" {:type "number"}}}}
+  (fn [{:keys [x]}] {:type "text" :text (str x)}))
+
+;; Notify clients of the change
+(server/notify-tool-list-changed! server)
+
+;; Deregister when no longer needed
+(server/deregister-tool! context "new-tool")
+(server/notify-tool-list-changed! server)
 ```
 
 ## Core Components
@@ -297,8 +328,24 @@ client-server interaction:
    - Server can send log messages to clients
    - Client can notify server of root list changes
 
-8. **Health Check**:
-   - Bidirectional ping support
+8. **Completions**:
+   - The client can request argument autocompletion suggestions
+   - Register completion handlers per prompt/resource argument
+
+9. **Sampling**:
+   - The server can request LLM sampling from the client
+   - The client has full discretion over model selection
+
+10. **Logging**:
+    - The client can set the server's logging level
+    - Server filters log notifications based on the threshold
+
+11. **Resource Subscriptions**:
+    - The client can subscribe to resource update notifications
+    - The server notifies when subscribed resources change
+
+12. **Health Check**:
+    - Bidirectional ping support
 
 ```mermaid
 sequenceDiagram
@@ -341,6 +388,26 @@ sequenceDiagram
     Prompt-->>-MCPServer: messages
     MCPServer-->>-Client: Prompt messages
 
+    Note over Client,MCPServer: Completions
+    Client->>+MCPServer: completion/complete (ref, argument)
+    MCPServer-->>-Client: completion values
+
+    Note over Client,MCPServer: Sampling
+    MCPServer->>+Client: sampling/createMessage
+    Client-->>-MCPServer: sampled response
+
+    Note over Client,MCPServer: Resource Subscriptions
+    Client->>+MCPServer: resources/subscribe (uri)
+    MCPServer-->>-Client: {}
+    MCPServer-->>Client: notifications/resources/updated (uri)
+    Client->>+MCPServer: resources/unsubscribe (uri)
+    MCPServer-->>-Client: {}
+
+    Note over Client,MCPServer: Logging
+    Client->>+MCPServer: logging/setLevel (level)
+    MCPServer-->>-Client: {}
+    MCPServer-->>Client: notifications/message (filtered by level)
+
     Note over Client,MCPServer: Roots
     MCPServer->>+Client: roots/list
     Client-->>-MCPServer: List of root URIs
@@ -349,9 +416,7 @@ sequenceDiagram
     Note over Client,MCPServer: Notifications
     MCPServer-->>Client: notifications/tools/list_changed
     MCPServer-->>Client: notifications/resources/list_changed
-    MCPServer-->>Client: notifications/resources/updated
     MCPServer-->>Client: notifications/prompts/list_changed
-    MCPServer-->>Client: notifications/message (logging)
 
     Note over Client,MCPServer: Health Check
     Client->>+MCPServer: ping
