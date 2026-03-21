@@ -318,6 +318,28 @@
           (is (not (contains? caps :prompts))))
         (shutdown-pair! pair)))))
 
+(def test-resource-template
+  {:uriTemplate "file:///users/{userId}/profile",
+   :name "User Profile",
+   :description "A user profile",
+   :mimeType "text/plain"})
+
+(deftest client-list-resource-templates
+  (testing "Client can list resource templates from server"
+    (let [pair (create-connected-pair
+                 {:name "test-server",
+                  :version "1.0.0",
+                  :tools [],
+                  :resource-templates [test-resource-template]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/list-resource-templates! (:client pair))]
+        (is (= 1 (count (:resourceTemplates result))))
+        (is (= "file:///users/{userId}/profile"
+               (:uriTemplate (first (:resourceTemplates result))))))
+      (shutdown-pair! pair))))
+
 (deftest client-ping
   (testing "Client can ping the server"
     (let [pair (create-connected-pair
