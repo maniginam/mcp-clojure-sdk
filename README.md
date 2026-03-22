@@ -269,6 +269,27 @@ deregistered at runtime:
 (server/notify-tool-list-changed! server)
 ```
 
+### Resource Templates with Handlers
+
+Resource templates can have handlers for resolving URIs that match the template pattern:
+
+```clojure
+(server/create-context!
+  {:name "my-server"
+   :version "1.0.0"
+   :resource-templates
+   [{:uriTemplate "file:///users/{userId}/profile"
+     :name "User Profile"
+     :description "A user's profile"
+     :mimeType "text/plain"
+     :handler (fn [uri]
+                {:uri uri
+                 :mimeType "text/plain"
+                 :text (str "Profile data for " uri)})}]})
+```
+
+When `resources/read` receives a URI like `file:///users/42/profile`, it first checks static resources, then falls back to matching against registered template patterns.
+
 ### Progress Notifications
 
 For long-running tools, send progress updates to the client:
