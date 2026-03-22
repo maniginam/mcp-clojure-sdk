@@ -382,12 +382,20 @@
 
 ;; [ref: cancelled_notification]
 (defmethod lsp.server/receive-notification "notifications/cancelled"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/cancelled"
              :request-id (:requestId params)
              :reason (:reason params))
-  (conform-or-log ::specs/cancelled-notification params))
+  (conform-or-log ::specs/cancelled-notification params)
+  (when-let [request-id (:requestId params)]
+    (swap! (:cancelled-requests context) conj request-id)))
+
+(defn cancelled?
+  "Check if a request has been cancelled by the client.
+   Tool handlers can call this to check if they should abort work."
+  [context request-id]
+  (contains? @(:cancelled-requests context) request-id))
 
 ;; [ref: progress_notification]
 (defmethod lsp.server/receive-notification "notifications/progress"
@@ -397,6 +405,24 @@
              :progress-token (:progressToken params)
              :progress (:progress params))
   (conform-or-log ::specs/progress-notification params))
+
+;; [ref: progress_notification_send]
+(defn notify-progress!
+  "Send a progress notification to the client for a long-running request.
+   progress-token is the token from the request's _meta.progressToken.
+   progress is a number indicating progress so far (should increase).
+   total is optional — the total amount of work if known."
+  ([server progress-token progress]
+   (lsp.server/send-notification server
+                                 "notifications/progress"
+                                 {:progressToken progress-token,
+                                  :progress progress}))
+  ([server progress-token progress total]
+   (lsp.server/send-notification server
+                                 "notifications/progress"
+                                 {:progressToken progress-token,
+                                  :progress progress,
+                                  :total total})))
 
 ;; [ref: resource_list_changed_notification]
 (defn notify-resource-list-changed!
@@ -622,7 +648,8 @@
    :protocol (atom nil),
    :protocol-version (atom nil),
    :capabilities (atom {:logging {}}),
-   :connected-clients (atom {})})
+   :connected-clients (atom {}),
+   :cancelled-requests (atom #{})})
 
 (defn create-context!
   "Create and configure an MCP server from a configuration map.

@@ -964,3 +964,47 @@
                                                    {:tools
                                                     [invalid-handler-tool]})))
             "Spec with a non-function handler should throw")))))
+
+(deftest progress-notification
+  (testing "Server sends progress notification to client"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0"})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (server/notify-progress! server "token-1" 50 100)
+      (let [msg (h/assert-take (:output-ch server))]
+        (is (= "notifications/progress" (:method msg)))
+        (is (= "token-1" (get-in msg [:params :progressToken])))
+        (is (= 50 (get-in msg [:params :progress])))
+        (is (= 100 (get-in msg [:params :total]))))
+      (server/shutdown! server)))
+  (testing "Progress notification without total"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0"})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (server/notify-progress! server "token-2" 10)
+      (let [msg (h/assert-take (:output-ch server))]
+        (is (= "notifications/progress" (:method msg)))
+        (is (= 10 (get-in msg [:params :progress])))
+        (is (nil? (get-in msg [:params :total]))))
+      (server/shutdown! server))))
+
+(deftest cancellation-tracking
+  (testing "Cancelled request is tracked in context"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0"})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; Send a cancelled notification
+      (async/put! (:input-ch server)
+                  (lsp.requests/notification "notifications/cancelled"
+                                            {:requestId "req-42"
+                                             :reason "User cancelled"}))
+      ;; Give it time to process
+      (Thread/sleep 100)
+      (is (server/cancelled? context "req-42")
+          "Request should be marked as cancelled")
+      (is (not (server/cancelled? context "req-99"))
+          "Non-cancelled request should not be marked")
+      (server/shutdown! server))))
