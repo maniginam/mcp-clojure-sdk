@@ -242,6 +242,9 @@ The SDK also provides an MCP client for connecting to MCP servers:
   (client/set-logging-level! client "warning")
   (client/ping! client)
 
+  ;; Call a tool with a progress token
+  (client/call-tool! client "process" {:data "..."} {:progressToken "tok-1"})
+
   ;; Auto-paginating helpers (follows cursors automatically)
   (client/list-all-tools! client)
   (client/list-all-resources! client)
@@ -261,6 +264,21 @@ Or use `with-connection` for automatic lifecycle management:
   ;; Connection is automatically initialized and cleaned up
   (let [tools (client/list-tools! (:client conn))]
     (println "Available tools:" (map :name (:tools tools)))))
+```
+
+### Client Notification Callbacks
+
+The client context supports callback handlers for server notifications:
+
+```clojure
+(client/create-context
+  {:client-info {:name "my-client" :version "1.0.0"}
+   :on-tools-changed    (fn [_] (println "Server tools changed!"))
+   :on-resources-changed (fn [_] (println "Server resources changed!"))
+   :on-prompts-changed   (fn [_] (println "Server prompts changed!"))
+   :on-resource-updated  (fn [params] (println "Resource updated:" (:uri params)))
+   :on-log-message       (fn [msg] (println (:level msg) (:data msg)))
+   :on-progress          (fn [p] (println "Progress:" (:progress p) "/" (:total p)))})
 ```
 
 ### Dynamic Registration
@@ -330,24 +348,18 @@ When `resources/read` receives a URI like `file:///users/42/profile`, it first c
 
 ### Progress Notifications
 
-For long-running tools, send progress updates to the client:
-
-```clojure
-;; In a tool handler, use the server endpoint from context
-(server/notify-progress! server "progress-token" 50 100)  ; 50 of 100
-(server/notify-progress! server "progress-token" 75)       ; 75, total unknown
-```
-
-Tool handlers can access the request metadata (including `progressToken`) via the
-`server/*request-meta*` dynamic var:
+Tool, resource, and prompt handlers have access to three dynamic vars during execution:
+- `server/*request-meta*` — the `_meta` field from the request (contains `progressToken`)
+- `server/*server*` — the server endpoint (for sending notifications)
+- `server/*context*` — the full server context (for checking cancellation, etc.)
 
 ```clojure
 (defn my-long-running-handler [args]
   (when-let [token (:progressToken server/*request-meta*)]
-    (server/notify-progress! server token 0 100))
+    (server/notify-progress! server/*server* token 0 100))
   ;; ... do work ...
   (when-let [token (:progressToken server/*request-meta*)]
-    (server/notify-progress! server token 100 100))
+    (server/notify-progress! server/*server* token 100 100))
   {:type "text" :text "done"})
 ```
 
@@ -356,8 +368,8 @@ Tool handlers can access the request metadata (including `progressToken`) via th
 Check if a request has been cancelled by the client:
 
 ```clojure
-;; In a tool handler
-(when (server/cancelled? context request-id)
+;; In a tool handler, use *context* to check cancellation
+(when (server/cancelled? server/*context* request-id)
   ;; Abort work early
   )
 ```

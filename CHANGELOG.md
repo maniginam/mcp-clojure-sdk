@@ -28,7 +28,18 @@ All notable changes to this project will be documented in this file. This change
 - **Completions**: Register completion handlers per prompt/resource argument
 - **Log level filtering**: Server filters log notifications based on client-set threshold
 - **Resource subscriptions**: Track client subscriptions; notify on resource updates
+- **Handler dynamic vars**: `*request-meta*`, `*server*`, `*context*` bound during handler execution
+  - Tool, resource, and prompt handlers can access request metadata, server endpoint, and context
+  - Enables progress notifications from within handlers without threading server references
+- **Client notification callbacks**: `on-tools-changed`, `on-resources-changed`,
+  `on-prompts-changed`, `on-resource-updated`, `on-log-message`, `on-progress`
+- **Client progress token support**: `call-tool!` accepts optional meta map for progress tokens
+- **Client progress handler**: Handles `notifications/progress` from server
 - **Integration tests**: End-to-end tests using piped streams for client-server communication
+
+### Fixed
+- **`_meta` serialization**: Fixed camelCase key transformation stripping leading underscores,
+  which broke MCP `_meta` field in JSON-RPC messages over piped/stdio transport
 
 ## [1.0.105] - 2025-03-18
 ### Changed
