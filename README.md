@@ -246,6 +246,17 @@ The SDK also provides an MCP client for connecting to MCP servers:
   (stdio-client/disconnect! conn))
 ```
 
+Or use `with-connection` for automatic lifecycle management:
+
+```clojure
+(stdio-client/with-connection
+  [conn {:command ["java" "-cp" "server.jar" "my_server"]
+         :client-info {:name "my-client" :version "1.0.0"}}]
+  ;; Connection is automatically initialized and cleaned up
+  (let [tools (client/list-tools! (:client conn))]
+    (println "Available tools:" (map :name (:tools tools)))))
+```
+
 ### Dynamic Registration
 
 Tools, resources, prompts, and completions can be registered and
