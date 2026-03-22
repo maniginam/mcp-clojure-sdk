@@ -441,6 +441,23 @@
                                                      {:missing "name"}))
                (h/assert-take (:output-ch server)))))
       (server/shutdown! server)))
+  (testing "Tool handler returning a tool-error response passes through"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "err-tool"
+                              :description "Returns error"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] (server/tool-error "bad input"))}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "err-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (true? (:isError result)))
+        (is (= [{:type "text", :text "bad input"}] (:content result))))
+      (server/shutdown! server)))
   (testing "Tool handler returning a string is wrapped as text content"
     (let [context (server/create-context!
                     {:name "test-server", :version "1.0.0",

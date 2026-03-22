@@ -158,18 +158,22 @@
 
 (defn coerce-tool-response
   "Coerces a tool response into the expected format.
-   Handles nil (empty result), strings (wraps as text), maps (wraps as content item),
-   and sequences (uses as content array).
+   If the response already has :content key, returns it as-is (pre-formed response).
+   Otherwise handles nil (empty), strings (text), maps (content item),
+   and sequences (content array).
    If the tool has an outputSchema, adds structuredContent."
   [tool response]
-  (let [content (cond
-                  (nil? response) []
-                  (string? response) [{:type "text", :text response}]
-                  (sequential? response) (vec response)
-                  :else [response])
-        base-map {:content content}]
-    ;; @TODO: [ref: structured-content-should-match-output-schema-exactly]
-    (cond-> base-map (:outputSchema tool) (assoc :structuredContent content))))
+  (if (and (map? response) (contains? response :content))
+    ;; Pre-formed response (e.g., from tool-error helper) — pass through
+    response
+    (let [content (cond
+                    (nil? response) []
+                    (string? response) [{:type "text", :text response}]
+                    (sequential? response) (vec response)
+                    :else [response])
+          base-map {:content content}]
+      ;; @TODO: [ref: structured-content-should-match-output-schema-exactly]
+      (cond-> base-map (:outputSchema tool) (assoc :structuredContent content)))))
 
 (defn- handle-call-tool
   [context params]
