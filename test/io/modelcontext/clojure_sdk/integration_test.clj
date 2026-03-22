@@ -350,6 +350,13 @@
       (testing "Calling non-existent tool returns error"
         (let [result (client/call-tool! (:client pair) "non-existent" {})]
           (is (some? (:error result)))))
+      (testing "Reading non-existent resource returns error"
+        (let [result (client/read-resource! (:client pair)
+                                             "file:///nope.txt")]
+          (is (some? (:error result)))))
+      (testing "Getting non-existent prompt returns error"
+        (let [result (client/get-prompt! (:client pair) "nope" {})]
+          (is (some? (:error result)))))
 
       (shutdown-pair! pair))))
 
