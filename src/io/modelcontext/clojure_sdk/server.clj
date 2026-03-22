@@ -32,6 +32,23 @@
   ([role content-type content-data]
    {:role role, :content (merge {:type content-type} content-data)}))
 
+;;; Tool/Resource/Prompt Definition Helpers
+
+(defn tool
+  "Define a tool map for use in create-context! or register-tool!.
+   Properties is a map of {\"param-name\" {:type \"string\" :description \"...\"}}."
+  ([name description handler]
+   (tool name description {} [] handler))
+  ([name description properties handler]
+   (tool name description properties (vec (keys properties)) handler))
+  ([name description properties required handler]
+   {:name name
+    :description description
+    :inputSchema {:type "object"
+                  :properties properties
+                  :required (vec required)}
+    :handler handler}))
+
 ;;; Helpers
 ;; Logging and Spec Checking
 (defmacro conform-or-log

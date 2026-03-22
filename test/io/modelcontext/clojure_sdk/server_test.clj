@@ -908,6 +908,28 @@
     (is (= {:role "assistant", :content {:type "text", :text "Hello!"}}
            (server/prompt-message "assistant" "Hello!")))))
 
+(deftest tool-helper
+  (testing "tool helper creates tool maps"
+    (testing "with properties and handler"
+      (let [t (server/tool "add" "Add numbers"
+                           {"a" {:type "number"} "b" {:type "number"}}
+                           (fn [{:keys [a b]}] (+ a b)))]
+        (is (= "add" (:name t)))
+        (is (= "Add numbers" (:description t)))
+        (is (= "object" (get-in t [:inputSchema :type])))
+        (is (= #{"a" "b"} (set (get-in t [:inputSchema :required]))))
+        (is (ifn? (:handler t)))))
+    (testing "with no properties"
+      (let [t (server/tool "noop" "Does nothing" (fn [_] nil))]
+        (is (= {} (get-in t [:inputSchema :properties])))
+        (is (= [] (get-in t [:inputSchema :required])))))
+    (testing "with explicit required list"
+      (let [t (server/tool "greet" "Greet"
+                           {"name" {:type "string"} "title" {:type "string"}}
+                           ["name"]
+                           (fn [{:keys [name]}] name))]
+        (is (= ["name"] (get-in t [:inputSchema :required])))))))
+
 (deftest validate-spec-test
   (testing "Validating server specifications"
     (let [valid-tool {:name "valid-tool",
