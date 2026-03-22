@@ -57,6 +57,12 @@
   [tool-def annotations]
   (assoc tool-def :annotations annotations))
 
+(defn with-output-schema
+  "Add an output schema to a tool definition.
+   Composable with tool helper: (-> (tool ...) (with-output-schema {:type \"object\" ...}))"
+  [tool-def schema]
+  (assoc tool-def :outputSchema schema))
+
 (defn resource
   "Define a resource map for use in create-context! or register-resource!.
    handler is (fn [uri] {:uri uri :mimeType mime-type :text content})."

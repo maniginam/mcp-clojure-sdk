@@ -1433,7 +1433,25 @@
     (let [t (-> (server/tool "rm" "Remove file" (fn [_] "ok"))
                 (server/annotate {:destructiveHint true}))]
       (is (= {:destructiveHint true} (:annotations t)))
-      (is (= "rm" (:name t))))))
+      (is (= "rm" (:name t)))))
+
+  (testing "with-output-schema composes with tool helper"
+    (let [t (-> (server/tool "compute" "Compute" (fn [_] nil))
+                (server/with-output-schema {:type "object"
+                                            :properties {"result" {:type "number"}}}))]
+      (is (= {:type "object" :properties {"result" {:type "number"}}}
+             (:outputSchema t)))
+      (is (= "compute" (:name t)))))
+
+  (testing "All composable helpers chain together"
+    (let [t (-> (server/tool "analyze" "Analyze data"
+                  {"input" {:type "string"}}
+                  (fn [_] nil))
+                (server/annotate {:readOnlyHint true})
+                (server/with-output-schema {:type "object"}))]
+      (is (= "analyze" (:name t)))
+      (is (some? (:annotations t)))
+      (is (some? (:outputSchema t))))))
 
 (deftest prompt-response-coercion
   (testing "Prompt handler returning string is auto-wrapped into messages"
