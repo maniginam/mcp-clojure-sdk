@@ -323,7 +323,32 @@ Define tools concisely with `server/tool`:
 ;; No parameters
 (server/tool "timestamp" "Get current time"
   (fn [_] (str (java.time.Instant/now))))
+
+;; With annotations (composable via threading)
+(-> (server/tool "read-file" "Read a file"
+      {"path" {:type "string"}}
+      (fn [{:keys [path]}] (slurp path)))
+    (server/annotate {:readOnlyHint true :idempotentHint true}))
 ```
+
+### Response Coercion
+
+Handlers can return simplified responses that are automatically coerced:
+
+**Tool handlers** can return:
+- String: wrapped into `[{:type "text" :text string}]`
+- nil: becomes empty content `[]`
+- Map with `:content`: passed through as-is (e.g., from `tool-error`)
+- Map/sequence: wrapped as content items
+
+**Resource handlers** can return:
+- String: wrapped into `{:uri uri :mimeType "text/plain" :text string}`
+- Map: passed through as-is
+
+**Prompt handlers** can return:
+- String: wrapped into a single assistant message
+- Vector: treated as message list
+- Map with `:messages`: passed through as-is
 
 ### Resource Templates with Handlers
 
