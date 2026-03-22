@@ -930,6 +930,28 @@
                            (fn [{:keys [name]}] name))]
         (is (= ["name"] (get-in t [:inputSchema :required])))))))
 
+(deftest resource-helper
+  (testing "resource helper creates resource maps"
+    (let [r (server/resource "file:///test.txt" "Test File" identity)]
+      (is (= "file:///test.txt" (:uri r)))
+      (is (= "Test File" (:name r)))
+      (is (= "text/plain" (:mimeType r)))
+      (is (ifn? (:handler r))))
+    (let [r (server/resource "file:///img.png" "Image" "image/png" identity)]
+      (is (= "image/png" (:mimeType r))))))
+
+(deftest prompt-helper
+  (testing "prompt helper creates prompt maps"
+    (let [p (server/prompt "greet" "Greet someone" identity)]
+      (is (= "greet" (:name p)))
+      (is (= "Greet someone" (:description p)))
+      (is (nil? (:arguments p)))
+      (is (ifn? (:handler p))))
+    (let [p (server/prompt "greet" "Greet"
+                           [{:name "name" :required true}]
+                           identity)]
+      (is (= [{:name "name" :required true}] (:arguments p))))))
+
 (deftest validate-spec-test
   (testing "Validating server specifications"
     (let [valid-tool {:name "valid-tool",

@@ -49,6 +49,23 @@
                   :required (vec required)}
     :handler handler}))
 
+(defn resource
+  "Define a resource map for use in create-context! or register-resource!.
+   handler is (fn [uri] {:uri uri :mimeType mime-type :text content})."
+  ([uri name handler]
+   (resource uri name "text/plain" handler))
+  ([uri name mime-type handler]
+   {:uri uri, :name name, :mimeType mime-type, :handler handler}))
+
+(defn prompt
+  "Define a prompt map for use in create-context! or register-prompt!.
+   arguments is a vector of {:name \"...\" :description \"...\" :required bool}.
+   handler is (fn [args] {:messages [...]})."
+  ([name description handler]
+   {:name name, :description description, :handler handler})
+  ([name description arguments handler]
+   {:name name, :description description, :arguments arguments, :handler handler}))
+
 ;;; Helpers
 ;; Logging and Spec Checking
 (defmacro conform-or-log
