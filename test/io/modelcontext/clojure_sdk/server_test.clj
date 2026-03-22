@@ -1418,3 +1418,43 @@
                 (server/annotate {:destructiveHint true}))]
       (is (= {:destructiveHint true} (:annotations t)))
       (is (= "rm" (:name t))))))
+
+(deftest prompt-response-coercion
+  (testing "Prompt handler returning string is auto-wrapped into messages"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :prompts [{:name "simple"
+                                :description "Simple prompt"
+                                :handler (fn [_] "Hello from the prompt!")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "prompts/get" {:name "simple"}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= 1 (count (:messages result))))
+        (is (= "assistant" (:role (first (:messages result)))))
+        (is (= "Hello from the prompt!"
+               (get-in (first (:messages result)) [:content :text]))))
+      (server/shutdown! server)))
+
+  (testing "Prompt handler returning vector is treated as messages"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :prompts [{:name "multi"
+                                :description "Multi-message prompt"
+                                :handler (fn [_]
+                                           [{:role "user"
+                                             :content {:type "text" :text "Q"}}
+                                            {:role "assistant"
+                                             :content {:type "text" :text "A"}}])}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "prompts/get" {:name "multi"}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= 2 (count (:messages result))))
+        (is (= "user" (:role (first (:messages result)))))
+        (is (= "assistant" (:role (second (:messages result))))))
+      (server/shutdown! server))))

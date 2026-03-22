@@ -302,6 +302,25 @@
     (cond-> {:prompts items}
       nextCursor (assoc :nextCursor nextCursor))))
 
+(defn- coerce-prompt-response
+  "Coerce a prompt handler response into the expected format.
+   Strings are wrapped into a single assistant message.
+   Maps with :messages are passed through.
+   Vectors are treated as message lists."
+  [response]
+  (cond
+    (string? response)
+    {:messages [{:role "assistant",
+                 :content {:type "text", :text response}}]}
+
+    (and (map? response) (contains? response :messages))
+    response
+
+    (sequential? response)
+    {:messages (vec response)}
+
+    :else response))
+
 (defn- handle-get-prompt
   [context params]
   (log/trace :fn :handle-get-prompt
@@ -316,7 +335,7 @@
           (try (binding [*request-meta* (:_meta params)
                          *server* @(:protocol context)
                          *context* context]
-                 (handler arguments))
+                 (coerce-prompt-response (handler arguments)))
                (catch Exception e
                  (log/error :fn :handle-get-prompt :prompt prompt-name :exception e)
                  {:messages [{:role "assistant",
