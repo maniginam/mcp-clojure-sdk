@@ -990,6 +990,30 @@
         (is (nil? (get-in msg [:params :total]))))
       (server/shutdown! server))))
 
+(deftest resource-template-read
+  (testing "Reading a URI matching a resource template invokes the template handler"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resource-templates
+                     [{:uriTemplate "file:///users/{userId}/profile",
+                       :name "User Profile",
+                       :description "A user's profile",
+                       :mimeType "text/plain",
+                       :handler (fn [uri]
+                                  {:uri uri,
+                                   :mimeType "text/plain",
+                                   :text (str "Profile for URI: " uri)})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/read"
+                                        {:uri "file:///users/42/profile"}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= "Profile for URI: file:///users/42/profile"
+               (-> result :contents first :text))))
+      (server/shutdown! server))))
+
 (deftest cancellation-tracking
   (testing "Cancelled request is tracked in context"
     (let [context (server/create-context!

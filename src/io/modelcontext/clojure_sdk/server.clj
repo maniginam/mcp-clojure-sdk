@@ -1,5 +1,6 @@
 (ns io.modelcontext.clojure-sdk.server
   (:require [clojure.core.async :as async]
+            [clojure.string]
             [io.modelcontext.clojure-sdk.mcp.errors :as mcp.errors]
             [io.modelcontext.clojure-sdk.specs :as specs]
             [lsp4clj.coercer :as coercer]
@@ -158,6 +159,23 @@
     (cond-> {:resources items}
       nextCursor (assoc :nextCursor nextCursor))))
 
+(defn- uri-matches-template?
+  "Check if a URI matches a URI template pattern (RFC 6570 simple form).
+   Converts {var} placeholders to regex groups."
+  [uri-template uri]
+  (let [pattern (-> uri-template
+                    (clojure.string/replace #"\{[^}]+\}" "([^/]+)")
+                    (str "$"))]
+    (re-matches (re-pattern pattern) uri)))
+
+(defn- find-template-handler
+  "Find a resource template handler that matches the given URI."
+  [resource-templates uri]
+  (some (fn [[uri-template {:keys [handler]}]]
+          (when (and handler (uri-matches-template? uri-template uri))
+            handler))
+        resource-templates))
+
 (defn- handle-read-resource
   [context params]
   (log/trace :fn :handle-read-resource :resource (:uri params))
@@ -172,10 +190,19 @@
                               :mimeType "text/plain",
                               :text (str "Error: " (.getMessage e))}],
                   :isError true}))
-          (do (log/debug :fn :handle-read-resource
-                         :resource uri
-                         :error :resource-not-found)
-              {:error (mcp.errors/body :resource-not-found {:uri uri})}))))))
+          ;; Fall back to template matching
+          (if-let [tmpl-handler (find-template-handler
+                                  @(:resource-templates context) uri)]
+            (try {:contents [(tmpl-handler uri)]}
+                 (catch Exception e
+                   {:contents [{:uri uri,
+                                :mimeType "text/plain",
+                                :text (str "Error: " (.getMessage e))}],
+                    :isError true}))
+            (do (log/debug :fn :handle-read-resource
+                           :resource uri
+                           :error :resource-not-found)
+                {:error (mcp.errors/body :resource-not-found {:uri uri})})))))))
 
 (defn- handle-list-prompts
   [context params]
@@ -304,7 +331,7 @@
 (defn- handle-list-resource-templates
   [context params]
   (log/trace :fn :handle-list-resource-templates)
-  (let [all-templates (vec (vals @(:resource-templates context)))
+  (let [all-templates (mapv #(dissoc % :handler) (vals @(:resource-templates context)))
         {:keys [items nextCursor]} (paginate all-templates (:cursor params)
                                             (or (:page-size context) default-page-size))]
     (cond-> {:resourceTemplates items}
@@ -396,6 +423,14 @@
    Tool handlers can call this to check if they should abort work."
   [context request-id]
   (contains? @(:cancelled-requests context) request-id))
+
+(defn clear-cancelled!
+  "Clear a specific request ID from the cancelled set, or clear all if no ID given.
+   Call after a cancelled request has been fully handled to prevent memory leaks."
+  ([context]
+   (reset! (:cancelled-requests context) #{}))
+  ([context request-id]
+   (swap! (:cancelled-requests context) disj request-id)))
 
 ;; [ref: progress_notification]
 (defmethod lsp.server/receive-notification "notifications/progress"
@@ -559,11 +594,18 @@
 
 (defn register-resource-template!
   "Register a resource template. template is a map with :uriTemplate, :name,
-   :description, :mimeType. Templates describe URI patterns per RFC 6570."
-  [context template]
-  (swap! (:resource-templates context) assoc (:uriTemplate template) template)
-  (swap! (:capabilities context) assoc :resources {:subscribe true,
-                                                    :listChanged true}))
+   :description, :mimeType. May include :handler (fn [uri] resource-contents)
+   for resolving URIs matching the template pattern via resources/read."
+  ([context template]
+   (register-resource-template! context template nil))
+  ([context template handler]
+   (let [entry (cond-> (dissoc template :handler)
+                 handler (assoc :handler handler)
+                 (and (nil? handler) (:handler template))
+                 (assoc :handler (:handler template)))]
+     (swap! (:resource-templates context) assoc (:uriTemplate entry) entry)
+     (swap! (:capabilities context) assoc :resources {:subscribe true,
+                                                       :listChanged true}))))
 
 (defn register-completion!
   "Register a completion handler for a prompt or resource argument.
