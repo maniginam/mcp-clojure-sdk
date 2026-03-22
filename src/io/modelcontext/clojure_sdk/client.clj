@@ -11,14 +11,28 @@
    - :client-info - {:name \"..\" :version \"..\"} identifying this client
    - :roots - vector of root maps [{:uri \"file://..\" :name \"..\"} ...]
    - :capabilities - client capabilities map
-   - :sampling-handler - (fn [params] response) for sampling/createMessage requests"
-  [{:keys [client-info roots capabilities sampling-handler]}]
+   - :sampling-handler - (fn [params] response) for sampling/createMessage requests
+   - :on-tools-changed - (fn [params] ...) called when server's tool list changes
+   - :on-resources-changed - (fn [params] ...) called when server's resource list changes
+   - :on-prompts-changed - (fn [params] ...) called when server's prompt list changes
+   - :on-resource-updated - (fn [params] ...) called when a subscribed resource updates
+   - :on-log-message - (fn [params] ...) called when server sends a log message
+   - :on-progress - (fn [params] ...) called when server sends progress notifications"
+  [{:keys [client-info roots capabilities sampling-handler
+           on-tools-changed on-resources-changed on-prompts-changed
+           on-resource-updated on-log-message on-progress]}]
   {:client-info (or client-info {:name "mcp-clojure-client", :version "1.0.0"}),
    :roots (atom (or roots [])),
    :capabilities (or capabilities
                      (cond-> {:roots {:listChanged true}}
                        sampling-handler (assoc :sampling {}))),
    :sampling-handler sampling-handler,
+   :on-tools-changed on-tools-changed,
+   :on-resources-changed on-resources-changed,
+   :on-prompts-changed on-prompts-changed,
+   :on-resource-updated on-resource-updated,
+   :on-log-message on-log-message,
+   :on-progress on-progress,
    :server-info (atom nil),
    :server-capabilities (atom nil)})
 
@@ -50,38 +64,57 @@
 
 ;; [ref: tool_list_changed_notification]
 (defmethod lsp.server/receive-notification "notifications/tools/list_changed"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/tools/list_changed"
-             :params params))
+             :params params)
+  (when-let [handler (:on-tools-changed context)]
+    (handler params)))
 
 ;; [ref: resource_list_changed_notification]
 (defmethod lsp.server/receive-notification "notifications/resources/list_changed"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/resources/list_changed"
-             :params params))
+             :params params)
+  (when-let [handler (:on-resources-changed context)]
+    (handler params)))
 
 ;; [ref: resource_updated_notification]
 (defmethod lsp.server/receive-notification "notifications/resources/updated"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/resources/updated"
-             :params params))
+             :params params)
+  (when-let [handler (:on-resource-updated context)]
+    (handler params)))
 
 ;; [ref: prompt_list_changed_notification]
 (defmethod lsp.server/receive-notification "notifications/prompts/list_changed"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/prompts/list_changed"
-             :params params))
+             :params params)
+  (when-let [handler (:on-prompts-changed context)]
+    (handler params)))
 
 ;; [ref: logging_message_notification]
 (defmethod lsp.server/receive-notification "notifications/message"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/message"
-             :params params))
+             :params params)
+  (when-let [handler (:on-log-message context)]
+    (handler params)))
+
+;; [ref: progress_notification]
+(defmethod lsp.server/receive-notification "notifications/progress"
+  [_ context params]
+  (log/trace :fn :receive-notification
+             :method "notifications/progress"
+             :params params)
+  (when-let [handler (:on-progress context)]
+    (handler params)))
 
 ;;; Client API — Requests (sent TO server)
 
@@ -130,12 +163,14 @@
      (lsp.server/deref-or-cancel pending default-timeout-ms nil))))
 
 (defn call-tool!
-  "Call a tool on the server."
-  ([client tool-name] (call-tool! client tool-name {}))
-  ([client tool-name arguments]
-   (let [pending (lsp.server/send-request client "tools/call"
-                                          {:name tool-name,
-                                           :arguments arguments})]
+  "Call a tool on the server. Optionally accepts a meta map (e.g., {:progressToken \"tok\"})
+   that will be sent as _meta in the request, enabling progress notifications."
+  ([client tool-name] (call-tool! client tool-name {} nil))
+  ([client tool-name arguments] (call-tool! client tool-name arguments nil))
+  ([client tool-name arguments meta]
+   (let [params (cond-> {:name tool-name, :arguments arguments}
+                  meta (assoc :_meta meta))
+         pending (lsp.server/send-request client "tools/call" params)]
      (lsp.server/deref-or-cancel pending default-timeout-ms nil))))
 
 (defn list-resources!

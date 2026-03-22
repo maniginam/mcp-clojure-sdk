@@ -483,3 +483,58 @@
              (:version @(:server-info (:client-context pair)))))
       (is (some? @(:server-capabilities (:client-context pair))))
       (shutdown-pair! pair))))
+
+(deftest integration-call-tool-with-progress-token
+  (testing "call-tool! with _meta progress token is received by handler"
+    (let [captured-meta (atom nil)
+          pair (create-piped-pair
+                 {:name "progress-server", :version "1.0.0",
+                  :tools [{:name "slow-tool"
+                           :description "A tool that captures meta"
+                           :inputSchema {:type "object"}
+                           :handler (fn [_]
+                                      (reset! captured-meta server/*request-meta*)
+                                      {:type "text" :text "done"})}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/call-tool! (:client pair) "slow-tool" {}
+                                      {:progressToken "progress-42"})]
+        (is (some? result))
+        (is (= {:progressToken "progress-42"} @captured-meta)))
+      (shutdown-pair! pair))))
+
+(deftest integration-notification-callbacks
+  (testing "Client receives tool list changed notification via callback"
+    (let [notified (promise)
+          pair (create-piped-pair
+                 {:name "notif-server", :version "1.0.0",
+                  :tools [calc-add]}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :on-tools-changed (fn [_] (deliver notified true))})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      ;; Register a new tool to trigger notification
+      (server/register-tool! (:server-context pair)
+                             {:name "new-tool"
+                              :description "New"
+                              :inputSchema {:type "object"}}
+                             (fn [_] "ok"))
+      (server/notify-tool-list-changed! @(:protocol (:server-context pair)))
+      (is (= true (deref notified 5000 :timeout)))
+      (shutdown-pair! pair)))
+
+  (testing "Client receives log message notification via callback"
+    (let [log-messages (atom [])
+          pair (create-piped-pair
+                 {:name "log-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :on-log-message (fn [msg] (swap! log-messages conj msg))})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (server/notify-log-message! @(:protocol (:server-context pair))
+                                  "info" "Test log entry")
+      (Thread/sleep 500)
+      (is (= 1 (count @log-messages)))
+      (is (= "info" (:level (first @log-messages))))
+      (shutdown-pair! pair))))

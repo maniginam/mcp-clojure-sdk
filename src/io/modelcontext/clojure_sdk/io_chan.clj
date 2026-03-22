@@ -27,9 +27,15 @@
 
 (defn ^:private kw->camelCaseString
   "Convert keywords to camelCase strings, but preserve capitalization of things
-  that are already strings."
+  that are already strings. Preserves leading underscores (e.g., :_meta -> \"_meta\")
+  which are used by MCP protocol fields."
   [k]
-  (cond-> k (keyword? k) csk/->camelCaseString))
+  (if (keyword? k)
+    (let [n (name k)]
+      (if (.startsWith n "_")
+        (str "_" (csk/->camelCaseString (subs n 1)))
+        (csk/->camelCaseString k)))
+    k))
 
 (def ^:private write-lock (Object.))
 
