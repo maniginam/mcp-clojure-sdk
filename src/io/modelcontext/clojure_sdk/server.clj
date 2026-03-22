@@ -89,6 +89,15 @@
        ~spec
        ~value)))
 
+(defn- exception-message
+  "Format an exception into a user-friendly error message with type info."
+  [^Exception e]
+  (let [msg (.getMessage e)
+        type-name (.getSimpleName (class e))]
+    (if msg
+      (str type-name ": " msg)
+      (str type-name " (no message)"))))
+
 ;;; Pagination
 
 (def default-page-size 50)
@@ -207,7 +216,8 @@
                          *context* context]
                  (coerce-tool-response tool (handler arguments)))
                (catch Exception e
-                 {:content [{:type "text", :text (str "Error: " (.getMessage e))}],
+                 (log/error :fn :handle-call-tool :tool tool-name :exception e)
+                 {:content [{:type "text", :text (exception-message e)}],
                   :isError true}))
           (do
             (log/debug :fn :handle-call-tool :tool tool-name :error :tool-not-found)
@@ -253,9 +263,10 @@
                          *context* context]
                  {:contents [(handler uri)]})
                (catch Exception e
+                 (log/error :fn :handle-read-resource :uri uri :exception e)
                  {:contents [{:uri uri,
                               :mimeType "text/plain",
-                              :text (str "Error: " (.getMessage e))}],
+                              :text (exception-message e)}],
                   :isError true}))
           ;; Fall back to template matching
           (if-let [tmpl-handler (find-template-handler
@@ -265,9 +276,10 @@
                            *context* context]
                    {:contents [(tmpl-handler uri)]})
                  (catch Exception e
+                   (log/error :fn :handle-read-resource :uri uri :template true :exception e)
                    {:contents [{:uri uri,
                                 :mimeType "text/plain",
-                                :text (str "Error: " (.getMessage e))}],
+                                :text (exception-message e)}],
                     :isError true}))
             (do (log/debug :fn :handle-read-resource
                            :resource uri
@@ -299,9 +311,10 @@
                          *context* context]
                  (handler arguments))
                (catch Exception e
+                 (log/error :fn :handle-get-prompt :prompt prompt-name :exception e)
                  {:messages [{:role "assistant",
                               :content {:type "text",
-                                        :text (str "Error: " (.getMessage e))}}],
+                                        :text (exception-message e)}}],
                   :isError true}))
           (do (log/debug :fn :handle-get-prompt
                          :prompt prompt-name

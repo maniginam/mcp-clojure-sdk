@@ -1350,3 +1350,42 @@
             "Response should NOT include structuredContent without outputSchema")
         (is (= [{:type "text" :text "hello"}] (:content result))))
       (server/shutdown! server))))
+
+(deftest handler-exception-format
+  (testing "Tool handler exception includes type name in error message"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "exploding-tool"
+                              :description "Throws an exception"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] (throw (ex-info "kaboom" {:reason "test"})))}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "exploding-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (:isError result))
+        (is (clojure.string/includes? (-> result :content first :text) "ExceptionInfo"))
+        (is (clojure.string/includes? (-> result :content first :text) "kaboom")))
+      (server/shutdown! server)))
+
+  (testing "Tool handler exception with nil message shows type only"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "null-msg-tool"
+                              :description "Throws with null message"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] (throw (NullPointerException.)))}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "null-msg-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (:isError result))
+        (is (clojure.string/includes? (-> result :content first :text) "NullPointerException"))
+        (is (clojure.string/includes? (-> result :content first :text) "no message")))
+      (server/shutdown! server))))
