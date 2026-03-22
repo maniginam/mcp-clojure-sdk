@@ -271,6 +271,37 @@
                                     :tools {:listChanged true}},
                   :serverInfo {:name "test-server", :version "1.0.0"}})
                (h/take-or-timeout (:output-ch server) 200))))
+      (server/shutdown! server)))
+  (testing "Initialize response includes instructions when configured"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools [tool-echo],
+                     :instructions "Use the echo tool to repeat messages."})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request
+                    1 "initialize"
+                    {:protocolVersion "2025-03-26",
+                     :capabilities {},
+                     :clientInfo {:name "ExampleClient", :version "1.0.0"}}))
+      (let [response (h/take-or-timeout (:output-ch server) 200)
+            result (:result response)]
+        (is (= "Use the echo tool to repeat messages." (:instructions result))))
+      (server/shutdown! server)))
+  (testing "Initialize response omits instructions when not configured"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools [tool-echo]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request
+                    1 "initialize"
+                    {:protocolVersion "2025-03-26",
+                     :capabilities {},
+                     :clientInfo {:name "ExampleClient", :version "1.0.0"}}))
+      (let [response (h/take-or-timeout (:output-ch server) 200)
+            result (:result response)]
+        (is (nil? (:instructions result))))
       (server/shutdown! server))))
 
 (deftest pagination-in-list-responses

@@ -102,9 +102,11 @@
                :client-id client-id
                :protocol-version negotiated-version)
     (reset! (:protocol-version context) negotiated-version)
-    {:protocolVersion negotiated-version,
-     :capabilities server-capabilities,
-     :serverInfo server-info}))
+    (cond-> {:protocolVersion negotiated-version,
+             :capabilities server-capabilities,
+             :serverInfo server-info}
+      (:instructions context)
+      (assoc :instructions (:instructions context)))))
 
 (defn- handle-ping [_context _params] (log/trace :fn :handle-ping) {})
 
@@ -631,11 +633,14 @@
                :handler (fn [args] ...)}]
     :resources [{:uri \"resource-uri\"
                  :type \"text\"
-                 :handler (fn [uri] ...)}]}"
-  [{:keys [name version tools prompts resources resource-templates], :as spec}]
+                 :handler (fn [uri] ...)}]
+    :instructions \"Optional instructions for LLMs on how to use this server\"}"
+  [{:keys [name version tools prompts resources resource-templates instructions],
+    :as spec}]
   (validate-spec! spec)
   (log/with-context {:action :create-context!}
-    (let [context (create-empty-context name version)]
+    (let [context (cond-> (create-empty-context name version)
+                    instructions (assoc :instructions instructions))]
       (when (> (count tools) 0)
         (log/debug :num-tools (count tools)
                    :msg "Registering tools"
