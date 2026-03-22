@@ -595,3 +595,100 @@
       (is (= 2 (count @log-messages)))
       (is (= #{"warning" "error"} (set (map :level @log-messages))))
       (shutdown-pair! pair))))
+
+(deftest integration-dynamic-tool-registration
+  (testing "Dynamically registering a tool makes it callable via client"
+    (let [pair (create-piped-pair
+                 {:name "dynamic-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      ;; No tools initially
+      (let [result (client/list-tools! (:client pair))]
+        (is (= 0 (count (:tools result)))))
+      ;; Register a tool at runtime
+      (server/register-tool! (:server-context pair)
+                             {:name "runtime-tool"
+                              :description "Added at runtime"
+                              :inputSchema {:type "object"
+                                            :properties {"x" {:type "string"}}}}
+                             (fn [{:keys [x]}] (str "got: " x)))
+      ;; Now it should appear and be callable
+      (let [result (client/list-tools! (:client pair))]
+        (is (= 1 (count (:tools result))))
+        (is (= "runtime-tool" (:name (first (:tools result))))))
+      (let [result (client/call-tool! (:client pair) "runtime-tool" {:x "hello"})]
+        (is (= "got: hello" (-> result :content first :text))))
+      ;; Deregister
+      (server/deregister-tool! (:server-context pair) "runtime-tool")
+      (let [result (client/list-tools! (:client pair))]
+        (is (= 0 (count (:tools result)))))
+      (shutdown-pair! pair))))
+
+(deftest integration-resource-templates
+  (testing "Resource templates resolve via client read-resource"
+    (let [pair (create-piped-pair
+                 {:name "template-server", :version "1.0.0",
+                  :resource-templates [{:uriTemplate "docs://{docId}"
+                                        :name "Document"
+                                        :description "Get document by ID"
+                                        :mimeType "text/plain"
+                                        :handler (fn [uri]
+                                                   {:uri uri
+                                                    :mimeType "text/plain"
+                                                    :text (str "Doc content for " uri)})}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      ;; Template should be listed
+      (let [result (client/list-resource-templates! (:client pair))]
+        (is (= 1 (count (:resourceTemplates result))))
+        (is (= "docs://{docId}"
+               (:uriTemplate (first (:resourceTemplates result))))))
+      ;; Reading a URI matching the template should resolve
+      (let [result (client/read-resource! (:client pair) "docs://42")]
+        (is (= "Doc content for docs://42"
+               (-> result :contents first :text))))
+      (shutdown-pair! pair))))
+
+(deftest integration-resource-subscriptions
+  (testing "Client can subscribe and unsubscribe to resources"
+    (let [resource-updated (atom nil)
+          pair (create-piped-pair
+                 {:name "sub-server", :version "1.0.0",
+                  :resources [{:uri "file:///watched.txt"
+                               :name "Watched"
+                               :handler (fn [_] "content")}]}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :on-resource-updated (fn [params]
+                                         (reset! resource-updated params))})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      ;; Subscribe
+      (client/subscribe-resource! (:client pair) "file:///watched.txt")
+      (Thread/sleep 200)
+      ;; Verify subscription tracked on server
+      (is (contains? @(:subscriptions (:server-context pair))
+                     "file:///watched.txt"))
+      ;; Server notifies update
+      (server/notify-resource-updated! (:server pair) "file:///watched.txt")
+      (Thread/sleep 500)
+      (is (= "file:///watched.txt" (:uri @resource-updated)))
+      ;; Unsubscribe
+      (client/unsubscribe-resource! (:client pair) "file:///watched.txt")
+      (Thread/sleep 200)
+      (is (not (contains? @(:subscriptions (:server-context pair))
+                          "file:///watched.txt")))
+      (shutdown-pair! pair))))
+
+(deftest integration-server-instructions
+  (testing "Server instructions are returned in initialize response"
+    (let [pair (create-piped-pair
+                 {:name "instruction-server", :version "1.0.0",
+                  :tools [],
+                  :instructions "Always be helpful and concise."}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (let [result (client/initialize! (:client pair))]
+        (is (= "Always be helpful and concise." (:instructions result))))
+      (shutdown-pair! pair))))
