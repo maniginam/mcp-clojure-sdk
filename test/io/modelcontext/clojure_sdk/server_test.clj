@@ -1308,3 +1308,45 @@
       (is (not (server/cancelled? context "req-99"))
           "Non-cancelled request should not be marked")
       (server/shutdown! server))))
+
+(deftest structured-output-schema
+  (testing "Tool with outputSchema includes structuredContent in response"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "structured-tool"
+                              :description "Returns structured data"
+                              :inputSchema {:type "object"}
+                              :outputSchema {:type "object"
+                                             :properties {"result" {:type "number"}}}
+                              :handler (fn [_] {:type "text" :text "42"})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "structured-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (contains? result :structuredContent)
+            "Response should include structuredContent when tool has outputSchema")
+        (is (= [{:type "text" :text "42"}] (:content result)))
+        (is (= [{:type "text" :text "42"}] (:structuredContent result))))
+      (server/shutdown! server)))
+
+  (testing "Tool without outputSchema omits structuredContent"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "plain-tool"
+                              :description "Returns plain text"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] {:type "text" :text "hello"})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "plain-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (not (contains? result :structuredContent))
+            "Response should NOT include structuredContent without outputSchema")
+        (is (= [{:type "text" :text "hello"}] (:content result))))
+      (server/shutdown! server))))
