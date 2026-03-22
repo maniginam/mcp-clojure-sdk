@@ -526,9 +526,22 @@
                           ;; over from inputSchema to keep it
                           ;; consistent
   (s/keys :req-un [:schema/type] :opt-un [:tool/properties]))
+;; Tool annotations provide hints about tool behavior to the client.
+(s/def :tool-annotations/title string?)
+(s/def :tool-annotations/readOnlyHint boolean?)
+(s/def :tool-annotations/destructiveHint boolean?)
+(s/def :tool-annotations/idempotentHint boolean?)
+(s/def :tool-annotations/openWorldHint boolean?)
+(s/def :tool/annotations
+  (s/keys :opt-un [:tool-annotations/title
+                   :tool-annotations/readOnlyHint
+                   :tool-annotations/destructiveHint
+                   :tool-annotations/idempotentHint
+                   :tool-annotations/openWorldHint]))
+
 (s/def ::tool
   (s/keys :req-un [:tool/name :tool/inputSchema]
-          :opt-un [:tool/description :tool/outputSchema]))
+          :opt-un [:tool/description :tool/outputSchema :tool/annotations]))
 
 ;;; Logging
 ;; [tag: set_logging_level_request]

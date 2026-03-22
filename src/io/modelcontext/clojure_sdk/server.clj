@@ -50,6 +50,13 @@
                   :required (vec required)}
     :handler handler}))
 
+(defn annotate
+  "Add annotations to a tool definition. annotations is a map that may contain:
+   :title, :readOnlyHint, :destructiveHint, :idempotentHint, :openWorldHint.
+   Composable with tool helper: (-> (tool ...) (annotate {:readOnlyHint true}))"
+  [tool-def annotations]
+  (assoc tool-def :annotations annotations))
+
 (defn resource
   "Define a resource map for use in create-context! or register-resource!.
    handler is (fn [uri] {:uri uri :mimeType mime-type :text content})."

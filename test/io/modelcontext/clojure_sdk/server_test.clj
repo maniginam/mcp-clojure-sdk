@@ -1389,3 +1389,32 @@
         (is (clojure.string/includes? (-> result :content first :text) "NullPointerException"))
         (is (clojure.string/includes? (-> result :content first :text) "no message")))
       (server/shutdown! server))))
+
+(deftest tool-annotations
+  (testing "Tool with annotations includes them in tools/list response"
+    (let [annotated-tool (-> (server/tool "read-file" "Read a file"
+                                          {"path" {:type "string"}}
+                                          (fn [{:keys [path]}] (str "contents of " path)))
+                             (server/annotate {:readOnlyHint true
+                                               :idempotentHint true
+                                               :openWorldHint false}))
+          context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [annotated-tool]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server) (lsp.requests/request 1 "tools/list" {}))
+      (let [response (h/assert-take (:output-ch server))
+            tool-info (first (get-in response [:result :tools]))]
+        (is (= "read-file" (:name tool-info)))
+        (is (= {:readOnlyHint true
+                :idempotentHint true
+                :openWorldHint false}
+               (:annotations tool-info))))
+      (server/shutdown! server)))
+
+  (testing "annotate helper composes with tool helper"
+    (let [t (-> (server/tool "rm" "Remove file" (fn [_] "ok"))
+                (server/annotate {:destructiveHint true}))]
+      (is (= {:destructiveHint true} (:annotations t)))
+      (is (= "rm" (:name t))))))
