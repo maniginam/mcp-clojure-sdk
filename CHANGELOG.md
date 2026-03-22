@@ -18,8 +18,9 @@ All notable changes to this project will be documented in this file. This change
 - **Progress notifications**: `notify-progress!` for long-running tool progress updates
 - **Cancellation tracking**: `cancelled?` and `clear-cancelled!` for cooperative cancellation
 - **Resource template handlers**: Templates with `:handler` resolve URIs via `resources/read`
-- **Helper functions**: `server/tool`, `server/resource`, `server/prompt` for concise definitions;
-  `text-content`, `image-content`, `tool-error`, `prompt-message` for building responses
+- **Helper functions**: `server/tool`, `server/resource`, `server/prompt`, `server/resource-template`
+  for concise definitions; `text-content`, `image-content`, `tool-error`, `prompt-message` for
+  building responses
 - **Instructions**: Server can provide LLM instructions via `:instructions` in config
 - **Protocol version negotiation**: Client and server negotiate supported protocol versions
 - **Improved tool response coercion**: Handles nil, strings, maps, sequences, and pre-formed responses

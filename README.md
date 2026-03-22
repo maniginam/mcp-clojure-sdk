@@ -304,23 +304,21 @@ deregistered at runtime:
 (server/notify-tool-list-changed! server)
 ```
 
-### Tool Helper
+### Definition Helpers
 
-Define tools concisely with `server/tool`:
+Define MCP components concisely:
 
 ```clojure
-;; All properties required by default
+;; Tools
 (server/tool "add" "Add two numbers"
   {"a" {:type "number"} "b" {:type "number"}}
   (fn [{:keys [a b]}] {:type "text" :text (str (+ a b))}))
 
-;; With explicit required list
 (server/tool "greet" "Greet someone"
   {"name" {:type "string"} "title" {:type "string"}}
-  ["name"]
+  ["name"]  ;; explicit required list
   (fn [{:keys [name]}] (str "Hello, " name "!")))
 
-;; No parameters
 (server/tool "timestamp" "Get current time"
   (fn [_] (str (java.time.Instant/now))))
 
@@ -329,6 +327,23 @@ Define tools concisely with `server/tool`:
       {"path" {:type "string"}}
       (fn [{:keys [path]}] (slurp path)))
     (server/annotate {:readOnlyHint true :idempotentHint true}))
+
+;; Resources
+(server/resource "file:///config.json" "Config" "application/json"
+  (fn [uri] {:uri uri :mimeType "application/json" :text (slurp "config.json")}))
+
+;; Resource Templates
+(server/resource-template "users://{userId}" "User Profile"
+  (fn [uri] (str "Profile for " uri)))
+
+(server/resource-template "docs://{docId}" "Document" "A project document" "text/markdown"
+  (fn [uri] (str "# Document\n" uri)))
+
+;; Prompts
+(server/prompt "analyze" "Analyze code"
+  [{:name "language" :required true} {:name "code" :required true}]
+  (fn [{:keys [language code]}]
+    {:messages [{:role "user" :content {:type "text" :text (str "Analyze this " language " code:\n" code)}}]}))
 ```
 
 ### Response Coercion
