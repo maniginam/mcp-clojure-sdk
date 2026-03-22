@@ -1720,3 +1720,24 @@
         (is (= "users://42" (:uri content)))
         (is (= "User: users://42" (:text content))))
       (server/shutdown! server))))
+
+(deftest resource-handler-returning-vector
+  (testing "Resource handler returning a vector of content items"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resources [{:uri "test://multi"
+                                  :name "Multi"
+                                  :handler (fn [uri]
+                                             [{:uri uri :mimeType "text/plain" :text "part 1"}
+                                              {:uri uri :mimeType "text/plain" :text "part 2"}])}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/read"
+                                        {:uri "test://multi"}))
+      (let [response (h/assert-take (:output-ch server))
+            contents (get-in response [:result :contents])]
+        (is (= 2 (count contents)))
+        (is (= "part 1" (:text (first contents))))
+        (is (= "part 2" (:text (second contents)))))
+      (server/shutdown! server))))
