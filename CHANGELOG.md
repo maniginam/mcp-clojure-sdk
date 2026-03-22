@@ -43,12 +43,21 @@ All notable changes to this project will be documented in this file. This change
 - **Client `update-roots!`**: Update client roots and notify server in one call
 - **Exception error messages**: Include exception type name; handle nil messages; log exceptions
 - **Integration tests**: End-to-end tests using piped streams for client-server communication
+- **`resource-template` helper**: `server/resource-template` for concise template definitions
+- **`with-output-schema` helper**: Composable output schema attachment for tool definitions
+- **`resource` 5-arity**: Resource helper now supports description parameter
+- **`stdio-client` option passthrough**: All client options (callbacks, sampling) pass through stdio-client
+- **IO channel tests**: Unit tests for transport layer JSON serialization and key transformation
 
 ### Fixed
 - **`_meta` serialization**: Fixed camelCase key transformation stripping leading underscores,
   which broke MCP `_meta` field in JSON-RPC messages over piped/stdio transport
 - **`:protocol` atom**: Fixed `start!` not storing server reference in context, causing
   `*server*` dynamic var to always be nil
+- **Resource coercion**: Fixed nested arrays when resource handlers return vectors;
+  coercion now handles vectors/sequences as multiple content items
+- **Output channel errors**: Write failures now log and close gracefully instead of
+  throwing from async/thread
 
 ## [1.0.105] - 2025-03-18
 ### Changed
