@@ -815,3 +815,50 @@
         (is (nil? (:destructiveHint annotations))
             "Unset annotations should not be present"))
       (shutdown-pair! pair))))
+
+(deftest integration-response-coercion
+  (testing "Simplified handler responses are properly coerced through transport"
+    (let [pair (create-piped-pair
+                 {:name "coercion-server", :version "1.0.0",
+                  :tools [(server/tool "string-tool" "Returns string"
+                            (fn [_] "just a string"))
+                          (server/tool "nil-tool" "Returns nil"
+                            (fn [_] nil))
+                          (server/tool "map-tool" "Returns content map"
+                            {"x" {:type "number"}}
+                            (fn [{:keys [x]}] {:type "text" :text (str x)}))]
+                  :resources [(server/resource "file:///coerce" "Coerced"
+                                (fn [_] "plain text resource"))]
+                  :prompts [{:name "simple-prompt"
+                             :description "Returns just a string"
+                             :arguments []
+                             :handler (fn [_] "Hello from prompt")}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Tool: string return → text content"
+        (let [result (client/call-tool! (:client pair) "string-tool" {})]
+          (is (= [{:type "text" :text "just a string"}] (:content result)))))
+
+      (testing "Tool: nil return → empty content"
+        (let [result (client/call-tool! (:client pair) "nil-tool" {})]
+          (is (= [] (:content result)))))
+
+      (testing "Tool: map return → single content item"
+        (let [result (client/call-tool! (:client pair) "map-tool" {:x 42})]
+          (is (= [{:type "text" :text "42"}] (:content result)))))
+
+      (testing "Resource: string return → text resource content"
+        (let [result (client/read-resource! (:client pair) "file:///coerce")]
+          (is (= 1 (count (:contents result))))
+          (is (= "plain text resource" (:text (first (:contents result)))))))
+
+      (testing "Prompt: string return → assistant message"
+        (let [result (client/get-prompt! (:client pair) "simple-prompt" {})]
+          (is (= 1 (count (:messages result))))
+          (is (= "assistant" (:role (first (:messages result)))))
+          (is (= "Hello from prompt"
+                 (-> result :messages first :content :text)))))
+
+      (shutdown-pair! pair))))
