@@ -481,3 +481,33 @@
         (is (= [{:uri "file:///new-root", :name "New Root"}]
                @(:roots (:server-context pair)))))
       (shutdown-pair! pair))))
+
+(deftest client-create-context-defaults
+  (testing "create-context provides defaults for client-info and capabilities"
+    (let [ctx (client/create-context {})]
+      (is (= {:name "mcp-clojure-client", :version "1.0.0"} (:client-info ctx)))
+      (is (= {:roots {:listChanged true}} (:capabilities ctx)))
+      (is (= [] @(:roots ctx)))
+      (is (nil? @(:server-info ctx)))
+      (is (nil? @(:server-capabilities ctx)))))
+  (testing "create-context uses provided values"
+    (let [ctx (client/create-context
+                {:client-info {:name "my-client" :version "2.0"}
+                 :roots [{:uri "file:///root"}]
+                 :capabilities {:custom true}})]
+      (is (= {:name "my-client" :version "2.0"} (:client-info ctx)))
+      (is (= {:custom true} (:capabilities ctx)))
+      (is (= [{:uri "file:///root"}] @(:roots ctx)))))
+  (testing "create-context with sampling handler enables sampling capability"
+    (let [ctx (client/create-context
+                {:sampling-handler (fn [_] nil)})]
+      (is (contains? (:capabilities ctx) :sampling))))
+  (testing "create-context stores callback handlers"
+    (let [handler (fn [_] nil)
+          ctx (client/create-context
+                {:on-tools-changed handler
+                 :on-log-message handler
+                 :on-progress handler})]
+      (is (= handler (:on-tools-changed ctx)))
+      (is (= handler (:on-log-message ctx)))
+      (is (= handler (:on-progress ctx))))))
