@@ -58,6 +58,10 @@ All notable changes to this project will be documented in this file. This change
   coercion now handles vectors/sequences as multiple content items
 - **Output channel errors**: Write failures now log and close gracefully instead of
   throwing from async/thread
+- **`notifications/progress` multimethod conflict**: Both `server.clj` and `client.clj`
+  defined handlers for the same global multimethod dispatch value; whichever loaded last
+  silently overwrote the other. Consolidated into a single handler in `server.clj` that
+  validates params and dispatches to `:on-progress` callback when present in context
 
 ## [1.0.105] - 2025-03-18
 ### Changed
