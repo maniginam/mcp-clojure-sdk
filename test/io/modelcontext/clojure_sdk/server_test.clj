@@ -1011,6 +1011,19 @@
     (let [r (server/resource "file:///img.png" "Image" "image/png" identity)]
       (is (= "image/png" (:mimeType r))))))
 
+(deftest resource-template-helper
+  (testing "resource-template helper creates template maps"
+    (let [rt (server/resource-template "users://{id}" "User" identity)]
+      (is (= "users://{id}" (:uriTemplate rt)))
+      (is (= "User" (:name rt)))
+      (is (= "text/plain" (:mimeType rt)))
+      (is (ifn? (:handler rt))))
+    (let [rt (server/resource-template "data://{id}" "Data" "application/json" identity)]
+      (is (= "application/json" (:mimeType rt))))
+    (let [rt (server/resource-template "docs://{id}" "Doc" "A document" "text/markdown" identity)]
+      (is (= "A document" (:description rt)))
+      (is (= "text/markdown" (:mimeType rt))))))
+
 (deftest prompt-helper
   (testing "prompt helper creates prompt maps"
     (let [p (server/prompt "greet" "Greet someone" identity)]

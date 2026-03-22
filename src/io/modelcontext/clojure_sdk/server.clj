@@ -65,6 +65,17 @@
   ([uri name mime-type handler]
    {:uri uri, :name name, :mimeType mime-type, :handler handler}))
 
+(defn resource-template
+  "Define a resource template map for use in create-context! or register-resource-template!.
+   handler is (fn [uri] {:uri uri :mimeType mime-type :text content})."
+  ([uri-template name handler]
+   (resource-template uri-template name "text/plain" handler))
+  ([uri-template name mime-type handler]
+   {:uriTemplate uri-template, :name name, :mimeType mime-type, :handler handler})
+  ([uri-template name description mime-type handler]
+   {:uriTemplate uri-template, :name name, :description description,
+    :mimeType mime-type, :handler handler}))
+
 (defn prompt
   "Define a prompt map for use in create-context! or register-prompt!.
    arguments is a vector of {:name \"...\" :description \"...\" :required bool}.
