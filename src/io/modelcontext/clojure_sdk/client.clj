@@ -200,6 +200,44 @@
   (let [pending (lsp.server/send-request client "logging/setLevel" {:level level})]
     (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
 
+;;; Pagination Helper
+
+(defn list-all!
+  "Collect all items from a paginated list endpoint by following cursors.
+   list-fn should be a function that accepts [client params] and returns
+   a paginated result. items-key is the key containing the items
+   (e.g., :tools, :resources, :prompts, :resourceTemplates).
+   Returns a flat vector of all items."
+  [client list-fn items-key]
+  (loop [cursor nil
+         acc []]
+    (let [result (list-fn client (cond-> {}
+                                   cursor (assoc :cursor cursor)))
+          new-acc (into acc (get result items-key))]
+      (if-let [next-cursor (:nextCursor result)]
+        (recur next-cursor new-acc)
+        new-acc))))
+
+(defn list-all-tools!
+  "List all tools from the server, automatically following pagination cursors."
+  [client]
+  (list-all! client list-tools! :tools))
+
+(defn list-all-resources!
+  "List all resources from the server, automatically following pagination cursors."
+  [client]
+  (list-all! client list-resources! :resources))
+
+(defn list-all-prompts!
+  "List all prompts from the server, automatically following pagination cursors."
+  [client]
+  (list-all! client list-prompts! :prompts))
+
+(defn list-all-resource-templates!
+  "List all resource templates from the server, automatically following pagination cursors."
+  [client]
+  (list-all! client list-resource-templates! :resourceTemplates))
+
 ;;; Client Notifications (sent TO server)
 
 (defn notify-roots-changed!

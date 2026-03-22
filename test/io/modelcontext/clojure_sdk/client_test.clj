@@ -443,6 +443,26 @@
       (is (= {} (client/unsubscribe-resource! (:client pair) "file:///test.txt")))
       (shutdown-pair! pair))))
 
+(deftest client-list-all-tools
+  (testing "list-all-tools! collects all tools across pages"
+    (let [tools (for [i (range 5)]
+                  {:name (str "tool-" i)
+                   :description (str "Tool " i)
+                   :inputSchema {:type "object"}
+                   :handler (fn [_] nil)})
+          pair (create-connected-pair
+                 {:name "test-server", :version "1.0.0",
+                  :page-size 2,
+                  :tools (vec tools)}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [all-tools (client/list-all-tools! (:client pair))]
+        (is (= 5 (count all-tools)))
+        (is (= (set (map #(str "tool-" %) (range 5)))
+               (set (map :name all-tools)))))
+      (shutdown-pair! pair))))
+
 (deftest client-notify-roots-changed
   (testing "Client can notify server of root list changes"
     (let [pair (create-connected-pair
