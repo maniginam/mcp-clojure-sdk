@@ -1043,6 +1043,84 @@
                                          :_meta {:progressToken "tok-123"}}))
       (h/assert-take (:output-ch server))
       (is (= {:progressToken "tok-123"} @captured-meta))
+      (server/shutdown! server)))
+
+  (testing "Tool handler can access *server* during execution"
+    (let [captured-server (atom nil)
+          context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "server-tool"
+                              :description "Captures server ref"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_]
+                                         (reset! captured-server server/*server*)
+                                         {:type "text", :text "ok"})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "server-tool", :arguments {}}))
+      (h/assert-take (:output-ch server))
+      (is (some? @captured-server))
+      (server/shutdown! server)))
+
+  (testing "Tool handler can access *context* during execution"
+    (let [captured-context (atom nil)
+          context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "context-tool"
+                              :description "Captures context ref"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_]
+                                         (reset! captured-context server/*context*)
+                                         {:type "text", :text "ok"})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "context-tool", :arguments {}}))
+      (h/assert-take (:output-ch server))
+      (is (some? @captured-context))
+      (is (= "test-server" (get-in @captured-context [:server-info :name])))
+      (server/shutdown! server)))
+
+  (testing "Resource handler can access *server* and *context*"
+    (let [captured (atom {})
+          context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resources [{:uri "test://res"
+                                  :name "test-res"
+                                  :handler (fn [_]
+                                             (reset! captured {:server server/*server*
+                                                               :context server/*context*})
+                                             [{:uri "test://res" :text "ok"}])}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/read" {:uri "test://res"}))
+      (h/assert-take (:output-ch server))
+      (is (some? (:server @captured)))
+      (is (some? (:context @captured)))
+      (server/shutdown! server)))
+
+  (testing "Prompt handler can access *server* and *context*"
+    (let [captured (atom {})
+          context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :prompts [{:name "test-prompt"
+                                :description "Test"
+                                :handler (fn [_]
+                                           (reset! captured {:server server/*server*
+                                                             :context server/*context*})
+                                           {:messages [{:role "assistant"
+                                                        :content {:type "text" :text "ok"}}]})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "prompts/get" {:name "test-prompt"}))
+      (h/assert-take (:output-ch server))
+      (is (some? (:server @captured)))
+      (is (some? (:context @captured)))
       (server/shutdown! server))))
 
 (deftest duplicate-registration

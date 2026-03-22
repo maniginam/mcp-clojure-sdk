@@ -150,6 +150,16 @@
    Tool handlers can use this to access progressToken for notify-progress! calls."
   nil)
 
+(def ^:dynamic *server*
+  "Bound to the server endpoint during handler execution.
+   Handlers can use this to send notifications (e.g., notify-progress!)."
+  nil)
+
+(def ^:dynamic *context*
+  "Bound to the server context during handler execution.
+   Handlers can use this to check cancelled? status or access server state."
+  nil)
+
 (defn- handle-ping [_context _params] (log/trace :fn :handle-ping) {})
 
 (defn- handle-list-tools
@@ -192,7 +202,9 @@
             arguments (:arguments params)
             meta-info (:_meta params)]
         (if-let [{:keys [tool handler]} (get tools tool-name)]
-          (try (binding [*request-meta* meta-info]
+          (try (binding [*request-meta* meta-info
+                         *server* @(:protocol context)
+                         *context* context]
                  (coerce-tool-response tool (handler arguments)))
                (catch Exception e
                  {:content [{:type "text", :text (str "Error: " (.getMessage e))}],
@@ -236,7 +248,9 @@
       (let [resources @(:resources context)
             meta-info (:_meta params)]
         (if-let [{:keys [handler]} (get resources uri)]
-          (try (binding [*request-meta* meta-info]
+          (try (binding [*request-meta* meta-info
+                         *server* @(:protocol context)
+                         *context* context]
                  {:contents [(handler uri)]})
                (catch Exception e
                  {:contents [{:uri uri,
@@ -246,7 +260,9 @@
           ;; Fall back to template matching
           (if-let [tmpl-handler (find-template-handler
                                   @(:resource-templates context) uri)]
-            (try (binding [*request-meta* meta-info]
+            (try (binding [*request-meta* meta-info
+                           *server* @(:protocol context)
+                           *context* context]
                    {:contents [(tmpl-handler uri)]})
                  (catch Exception e
                    {:contents [{:uri uri,
@@ -278,7 +294,9 @@
       (let [prompts @(:prompts context)
             arguments (:arguments params)]
         (if-let [{:keys [handler]} (get prompts prompt-name)]
-          (try (binding [*request-meta* (:_meta params)]
+          (try (binding [*request-meta* (:_meta params)
+                         *server* @(:protocol context)
+                         *context* context]
                  (handler arguments))
                (catch Exception e
                  {:messages [{:role "assistant",
@@ -810,6 +828,7 @@
   "Start the MCP server. Returns a promise that resolves when the server shuts down."
   [server context]
   (log/info :msg "[SERVER] Starting server...")
+  (reset! (:protocol context) server)
   (lsp.server/start server context))
 
 (defn shutdown!
