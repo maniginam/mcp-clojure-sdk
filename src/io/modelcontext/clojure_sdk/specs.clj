@@ -836,10 +836,13 @@
   (s/merge ::resource (s/keys :req-un [:server-spec/handler])))
 (s/def :server-spec/resources (s/coll-of :server-spec/resource))
 (s/def :server-spec/resource-templates (s/coll-of ::resource-template))
+(s/def :server-spec/instructions string?)
+(s/def :server-spec/page-size pos-int?)
 (s/def ::server-spec
   (s/keys :req-un [:implementation/name :implementation/version]
           :opt-un [:server-spec/tools :server-spec/prompts
-                   :server-spec/resources :server-spec/resource-templates]))
+                   :server-spec/resources :server-spec/resource-templates
+                   :server-spec/instructions :server-spec/page-size]))
 
 ;; Helper functions for resource validation
 (defn valid-resource? [resource] (s/valid? ::resource resource))
