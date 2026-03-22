@@ -68,7 +68,7 @@ Added invalid-params validation (-32602) for tools/call, resources/read, prompts
 Error handling for handler exceptions in tool/resource/prompt handlers.
 ** DONE Add response helpers for building well-formed responses
 CLOSED: [2026-03-21 Sat]
-text-content, image-content, error-content, prompt-message helper functions.
+text-content, image-content, tool-error, prompt-message helper functions.
 ** DONE Add cursor-based pagination to list handlers
 CLOSED: [2026-03-21 Sat]
 ** DONE Add registration/deregistration API with capability cleanup

@@ -20,10 +20,11 @@
   [data mime-type]
   {:type "image", :data data, :mimeType mime-type})
 
-(defn error-content
-  "Create an error tool response."
+(defn tool-error
+  "Create an error tool response with isError flag at the response level.
+   Returns the full tool response map (not just a content item)."
   [message]
-  {:type "text", :text message, :isError true})
+  {:content [{:type "text", :text message}], :isError true})
 
 (defn prompt-message
   "Create a prompt message for prompt handler responses."

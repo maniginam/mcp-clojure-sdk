@@ -936,10 +936,10 @@
   (testing "image-content creates an image content block"
     (is (= {:type "image", :data "base64data", :mimeType "image/png"}
            (server/image-content "base64data" "image/png"))))
-  (testing "error-content creates an error content block"
-    (let [result (server/error-content "something went wrong")]
-      (is (= "text" (:type result)))
-      (is (= "something went wrong" (:text result)))))
+  (testing "tool-error creates an error tool response"
+    (let [result (server/tool-error "something went wrong")]
+      (is (true? (:isError result)))
+      (is (= [{:type "text", :text "something went wrong"}] (:content result)))))
   (testing "prompt-message creates a prompt message"
     (is (= {:role "assistant", :content {:type "text", :text "Hello!"}}
            (server/prompt-message "assistant" "Hello!")))))
