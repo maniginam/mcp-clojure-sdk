@@ -269,6 +269,27 @@ deregistered at runtime:
 (server/notify-tool-list-changed! server)
 ```
 
+### Tool Helper
+
+Define tools concisely with `server/tool`:
+
+```clojure
+;; All properties required by default
+(server/tool "add" "Add two numbers"
+  {"a" {:type "number"} "b" {:type "number"}}
+  (fn [{:keys [a b]}] {:type "text" :text (str (+ a b))}))
+
+;; With explicit required list
+(server/tool "greet" "Greet someone"
+  {"name" {:type "string"} "title" {:type "string"}}
+  ["name"]
+  (fn [{:keys [name]}] (str "Hello, " name "!")))
+
+;; No parameters
+(server/tool "timestamp" "Get current time"
+  (fn [_] (str (java.time.Instant/now))))
+```
+
 ### Resource Templates with Handlers
 
 Resource templates can have handlers for resolving URIs that match the template pattern:
