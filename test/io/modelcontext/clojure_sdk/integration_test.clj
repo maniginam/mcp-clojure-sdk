@@ -274,6 +274,18 @@
                        (:client pair) "greet" "name" "B")]
           (is (= ["Bob"] values))))
 
+      ;; Register a resource template completion
+      (server/register-completion!
+        (:server-context pair) "docs://{docId}" "docId"
+        (fn [partial]
+          {:values (filterv #(clojure.string/starts-with? % partial)
+                            ["readme" "changelog" "license"])}))
+
+      (testing "complete-resource-arg! convenience wrapper"
+        (let [values (client/complete-resource-arg!
+                       (:client pair) "docs://{docId}" "docId" "c")]
+          (is (= ["changelog"] values))))
+
       (shutdown-pair! pair))))
 
 (deftest integration-resource-subscriptions
@@ -451,6 +463,31 @@
           (is (= (set (map #(str "tool-" %) (range 5)))
                  (set (map :name all-tools))))))
 
+      (testing "list-all-tools! convenience helper collects all pages"
+        (let [all-tools (client/list-all-tools! (:client pair))]
+          (is (= 5 (count all-tools)))))
+
+      (shutdown-pair! pair))))
+
+(deftest integration-list-all-resources-paginated
+  (testing "list-all-resources! collects all resources across pages"
+    (let [resources (for [i (range 4)]
+                      {:uri (str "file:///res-" i)
+                       :name (str "Resource " i)
+                       :handler (fn [uri] {:uri uri :mimeType "text/plain"
+                                           :text "content"})})
+          pair (create-piped-pair
+                 {:name "res-page-server", :version "1.0.0",
+                  :page-size 2,
+                  :tools [],
+                  :resources (vec resources)}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [all-resources (client/list-all-resources! (:client pair))]
+        (is (= 4 (count all-resources)))
+        (is (= (set (map #(str "file:///res-" %) (range 4)))
+               (set (map :uri all-resources)))))
       (shutdown-pair! pair))))
 
 (deftest integration-instructions
