@@ -269,6 +269,40 @@ deregistered at runtime:
 (server/notify-tool-list-changed! server)
 ```
 
+### Progress Notifications
+
+For long-running tools, send progress updates to the client:
+
+```clojure
+;; In a tool handler, use the server endpoint from context
+(server/notify-progress! server "progress-token" 50 100)  ; 50 of 100
+(server/notify-progress! server "progress-token" 75)       ; 75, total unknown
+```
+
+### Cancellation Support
+
+Check if a request has been cancelled by the client:
+
+```clojure
+;; In a tool handler
+(when (server/cancelled? context request-id)
+  ;; Abort work early
+  )
+```
+
+### Server Configuration
+
+```clojure
+(server/create-context!
+  {:name "my-server"
+   :version "1.0.0"
+   :instructions "Optional instructions for LLMs on how to use this server"
+   :page-size 25     ; Custom pagination page size (default: 50)
+   :tools [...]
+   :resources [...]
+   :prompts [...]})
+```
+
 ## Core Components
 
 1. **Server Implementation** (`server.clj`): Handles request/response
@@ -344,7 +378,12 @@ client-server interaction:
     - The client can subscribe to resource update notifications
     - The server notifies when subscribed resources change
 
-12. **Health Check**:
+12. **Progress & Cancellation**:
+    - Server sends progress notifications for long-running requests
+    - Client can cancel in-flight requests
+    - Server tracks cancelled requests for cooperative cancellation
+
+13. **Health Check**:
     - Bidirectional ping support
 
 ```mermaid
@@ -417,6 +456,10 @@ sequenceDiagram
     MCPServer-->>Client: notifications/tools/list_changed
     MCPServer-->>Client: notifications/resources/list_changed
     MCPServer-->>Client: notifications/prompts/list_changed
+
+    Note over Client,MCPServer: Progress & Cancellation
+    MCPServer-->>Client: notifications/progress (token, progress, total)
+    Client->>MCPServer: notifications/cancelled (requestId)
 
     Note over Client,MCPServer: Health Check
     Client->>+MCPServer: ping
