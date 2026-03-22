@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MCP Clojure SDK — Overnight Development Report</title>
+<style>
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 40px; color: #222; line-height: 1.6; }
+  h1 { color: #1a1a2e; border-bottom: 3px solid #16213e; padding-bottom: 10px; }
+  h2 { color: #16213e; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+  h3 { color: #0f3460; }
+  .stats { display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0; }
+  .stat-card { background: #f0f4f8; border-radius: 8px; padding: 15px 25px; min-width: 150px; text-align: center; }
+  .stat-card .number { font-size: 2em; font-weight: bold; color: #16213e; }
+  .stat-card .label { font-size: 0.9em; color: #666; }
+  table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+  th { background: #16213e; color: white; padding: 10px; text-align: left; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+  tr:hover { background: #f5f5f5; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; margin: 1px; }
+  .tag-feat { background: #d4edda; color: #155724; }
+  .tag-fix { background: #fff3cd; color: #856404; }
+  .tag-test { background: #cce5ff; color: #004085; }
+  .tag-docs { background: #e2e3e5; color: #383d41; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  .section { margin-bottom: 30px; }
+  .highlight { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 10px 15px; margin: 15px 0; }
+  .remaining { background: #fff8e1; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; }
+</style>
+</head>
+<body>
+
+<h1>MCP Clojure SDK — Overnight Development Report</h1>
+<p><strong>Date:</strong> March 21-22, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main &nbsp;|&nbsp; <strong>Remote:</strong> maniginam/mcp-clojure-sdk</p>
+
+<div class="stats">
+  <div class="stat-card"><div class="number">103</div><div class="label">Commits Ahead</div></div>
+  <div class="stat-card"><div class="number">118</div><div class="label">Tests</div></div>
+  <div class="stat-card"><div class="number">547</div><div class="label">Assertions</div></div>
+  <div class="stat-card"><div class="number">5,870</div><div class="label">Lines of Code</div></div>
+  <div class="stat-card"><div class="number">0</div><div class="label">Failures</div></div>
+</div>
+
+<div class="section">
+<h2>Executive Summary</h2>
+<p>The SDK went from a server-only implementation to a <strong>full-featured MCP client+server SDK</strong> with comprehensive test coverage. All MCP protocol methods are implemented on both sides. The codebase has extensive unit tests, integration tests (using piped streams), generative tests, and transport layer tests.</p>
+</div>
+
+<div class="section">
+<h2>Features Added</h2>
+
+<h3>Client Implementation</h3>
+<table>
+<tr><th>Feature</th><th>Files</th><th>Status</th></tr>
+<tr><td>Full MCP client API (all methods)</td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>stdio transport client</td><td><code>stdio_client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td><code>with-connection</code> macro for lifecycle management</td><td><code>stdio_client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Sampling handler support (server→client LLM requests)</td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Client notification callbacks (6 event types)</td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Progress token support in <code>call-tool!</code></td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Auto-paginating helpers (<code>list-all-*!</code>)</td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Completion convenience wrappers</td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td><code>update-roots!</code> for dynamic root management</td><td><code>client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Pass all opts through <code>stdio-client</code></td><td><code>stdio_client.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+</table>
+
+<h3>Server Enhancements</h3>
+<table>
+<tr><th>Feature</th><th>Files</th><th>Status</th></tr>
+<tr><td>Dynamic registration/deregistration (tools, resources, prompts, templates, completions)</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Cursor-based pagination for all list handlers</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Progress notifications (<code>notify-progress!</code>)</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Cancellation tracking (<code>cancelled?</code>, <code>clear-cancelled!</code>)</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Resource template URI matching with handlers</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Helper functions (<code>tool</code>, <code>resource</code>, <code>prompt</code>, <code>annotate</code>)</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Response coercion (tool, resource, prompt handlers)</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Tool annotations (<code>readOnlyHint</code>, etc.)</td><td><code>server.clj</code>, <code>specs.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Handler dynamic vars (<code>*request-meta*</code>, <code>*server*</code>, <code>*context*</code>)</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Instructions support in initialize response</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Log level filtering</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Protocol version negotiation</td><td><code>server.clj</code>, <code>specs.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+<tr><td>Exception error messages with type info</td><td><code>server.clj</code></td><td><span class="tag tag-feat">complete</span></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Bug Fixes</h2>
+<table>
+<tr><th>Bug</th><th>Root Cause</th><th>Fix</th></tr>
+<tr><td><code>_meta</code> field lost in JSON-RPC serialization</td><td><code>camel-snake-kebab/->camelCaseString</code> strips leading underscores, converting <code>:_meta</code> to <code>"meta"</code></td><td>Custom <code>kw->camelCaseString</code> in <code>io_chan.clj</code> preserves leading underscores</td></tr>
+<tr><td><code>*server*</code> dynamic var always nil in handlers</td><td><code>start!</code> didn't store server reference in context's <code>:protocol</code> atom</td><td>Added <code>(reset! (:protocol context) server)</code> to <code>start!</code></td></tr>
+<tr><td><code>on-progress</code> callback never called</td><td>Both <code>server.clj</code> and <code>client.clj</code> registered <code>defmethod</code> for <code>"notifications/progress"</code> on the same global multimethod — last loaded wins silently</td><td>Consolidated into single handler in <code>server.clj</code> that validates and dispatches to <code>:on-progress</code> when present</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Test Coverage</h2>
+<table>
+<tr><th>Test Suite</th><th>File</th><th>Tests</th><th>Focus</th></tr>
+<tr><td>Server Unit Tests</td><td><code>server_test.clj</code></td><td>~55</td><td>All server handlers, edge cases, dynamic registration, coercion, error handling</td></tr>
+<tr><td>Client Unit Tests</td><td><code>client_test.clj</code></td><td>~20</td><td>Client API methods, pagination, roots, sampling</td></tr>
+<tr><td>Integration Tests</td><td><code>integration_test.clj</code></td><td>~20</td><td>E2E via piped streams: lifecycle, sampling, completions, subscriptions, templates, pagination</td></tr>
+<tr><td>IO Channel Tests</td><td><code>io_chan_test.clj</code></td><td>6</td><td>JSON serialization, key transformation, underscore preservation, stream roundtrip</td></tr>
+<tr><td>Spec Validation Tests</td><td><code>specs_test.clj</code></td><td>~8</td><td>Annotations, output schema, server-spec validation</td></tr>
+<tr><td>Generative Tests</td><td><code>specs_gen_test.clj</code></td><td>8 (×100)</td><td>Property-based testing for spec validity/rejection</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Architecture Overview</h2>
+<pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">
+┌─────────────────────────────────────────────────────────────┐
+│                     MCP Clojure SDK                          │
+├─────────────┬───────────────┬───────────────────────────────┤
+│  server.clj │  client.clj   │  specs.clj                    │
+│  (896 lines)│  (315 lines)  │  (918 lines)                  │
+│             │               │                                │
+│  Handlers   │  Client API   │  Protocol specs               │
+│  Helpers    │  Callbacks     │  Validation fns               │
+│  Registration│ Pagination   │  Version negotiation          │
+│  Coercion   │  Completions  │                                │
+├─────────────┴───────────────┴───────────────────────────────┤
+│                    Transport Layer                            │
+├───────────────────┬─────────────────┬───────────────────────┤
+│  stdio_server.clj │ stdio_client.clj│  io_chan.clj           │
+│  (50 lines)       │ (81 lines)      │  (93 lines)           │
+│                   │                 │                        │
+│  stdin/stdout     │ Subprocess mgmt │  Stream↔Channel       │
+│  Server startup   │ with-connection │  JSON ser/deser       │
+│                   │ lifecycle       │  camelCase transform   │
+├───────────────────┴─────────────────┴───────────────────────┤
+│  lsp4clj (JSON-RPC bidirectional communication)              │
+│  core.async channels                                         │
+└─────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<div class="section">
+<h2>Key Design Decisions</h2>
+<ul>
+<li><strong>Bidirectional lsp4clj</strong>: Both client and server use <code>ChanServer</code> — same endpoint type, different multimethod handlers</li>
+<li><strong>Dynamic vars for handler context</strong>: <code>*request-meta*</code>, <code>*server*</code>, <code>*context*</code> avoid threading server references through every handler</li>
+<li><strong>Response coercion</strong>: Handlers can return strings/nil/maps/sequences — SDK wraps them correctly</li>
+<li><strong>Capability tracking</strong>: Registration/deregistration auto-updates <code>:capabilities</code> atom — no stale capabilities advertised</li>
+<li><strong>Underscore preservation</strong>: Custom JSON key transformer preserves <code>_meta</code> (MCP protocol field) through serialization</li>
+</ul>
+</div>
+
+<div class="remaining">
+<h2>Remaining Work (from todo.org)</h2>
+<ul>
+<li><strong>SSE/HTTP Streaming Transport</strong> — Server and client support for HTTP-based transport</li>
+<li><strong>Example mcp-client-tool</strong> — CLI tool to run and inspect MCP servers (npx/python/java support)</li>
+<li><strong>Transport error handling</strong> — Improve resilience of transport layer</li>
+<li><strong>Transport best practices</strong> — Implement recommended patterns</li>
+<li><strong>Babashka compatibility</strong> — Explore bb as runner (currently incompatible)</li>
+<li><strong>CLI tool for project scaffolding</strong> — Language-agnostic MCP project creation</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>Files Changed</h2>
+<table>
+<tr><th>File</th><th>Lines</th><th>Changes</th></tr>
+<tr><td><code>src/.../server.clj</code></td><td>896</td><td>Dynamic registration, coercion, annotations, dynamic vars, error handling, pagination</td></tr>
+<tr><td><code>src/.../client.clj</code></td><td>315</td><td>Full client API, callbacks, completions, update-roots!</td></tr>
+<tr><td><code>src/.../stdio_client.clj</code></td><td>81</td><td>New file — subprocess management, with-connection macro</td></tr>
+<tr><td><code>src/.../io_chan.clj</code></td><td>93</td><td>Underscore preservation fix in kw->camelCaseString</td></tr>
+<tr><td><code>src/.../specs.clj</code></td><td>918</td><td>Tool annotations, version negotiation, server-spec validation</td></tr>
+<tr><td><code>test/.../server_test.clj</code></td><td>1700+</td><td>Edge cases, dynamic registration, coercion, error handling, cancellation</td></tr>
+<tr><td><code>test/.../integration_test.clj</code></td><td>700+</td><td>E2E lifecycle, sampling, completions, subscriptions, templates, pagination</td></tr>
+<tr><td><code>test/.../client_test.clj</code></td><td>484</td><td>Client API, pagination helpers, roots</td></tr>
+<tr><td><code>test/.../io_chan_test.clj</code></td><td>117</td><td>New file — transport layer tests</td></tr>
+<tr><td><code>test/.../specs_test.clj</code></td><td>163</td><td>Annotations, output schema, server-spec validation</td></tr>
+<tr><td><code>README.md</code></td><td>628</td><td>Client docs, dynamic registration, tool helpers, annotations, coercion</td></tr>
+<tr><td><code>CHANGELOG.md</code></td><td>70</td><td>Comprehensive unreleased changelog</td></tr>
+</table>
+</div>
+
+</body>
+</html>
