@@ -862,3 +862,45 @@
                  (-> result :messages first :content :text)))))
 
       (shutdown-pair! pair))))
+
+(deftest integration-list-all-prompts-paginated
+  (testing "list-all-prompts! collects all prompts across pages"
+    (let [prompts (for [i (range 5)]
+                    {:name (str "prompt-" i)
+                     :description (str "Prompt " i)
+                     :arguments []
+                     :handler (fn [_] (str "Response " i))})
+          pair (create-piped-pair
+                 {:name "prompt-page-server", :version "1.0.0",
+                  :page-size 2,
+                  :tools [],
+                  :prompts (vec prompts)}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [all-prompts (client/list-all-prompts! (:client pair))]
+        (is (= 5 (count all-prompts)))
+        (is (= (set (map #(str "prompt-" %) (range 5)))
+               (set (map :name all-prompts)))))
+      (shutdown-pair! pair))))
+
+(deftest integration-list-all-resource-templates-paginated
+  (testing "list-all-resource-templates! collects all templates across pages"
+    (let [templates (for [i (range 4)]
+                      (server/resource-template
+                        (str "users://{userId}/item-" i)
+                        (str "Item Template " i)
+                        (fn [uri] (str "data for " uri))))
+          pair (create-piped-pair
+                 {:name "template-page-server", :version "1.0.0",
+                  :page-size 2,
+                  :tools [],
+                  :resource-templates (vec templates)}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [all-templates (client/list-all-resource-templates! (:client pair))]
+        (is (= 4 (count all-templates)))
+        (is (every? #(clojure.string/starts-with? (:uriTemplate %) "users://")
+                    all-templates)))
+      (shutdown-pair! pair))))
