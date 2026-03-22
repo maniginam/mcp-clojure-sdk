@@ -361,6 +361,42 @@
             "Should return only 1 tool with page-size 1")
         (is (some? (:nextCursor result))
             "Should include nextCursor when more items exist"))
+      (server/shutdown! server)))
+  (testing "Cursor-based pagination walks through all pages"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :page-size 1,
+                     :tools [tool-echo
+                             {:name "tool-b"
+                              :description "Tool B"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] "b")}
+                             {:name "tool-c"
+                              :description "Tool C"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] "c")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; First page
+      (async/put! (:input-ch server) (lsp.requests/request 1 "tools/list" {}))
+      (let [r1 (:result (h/assert-take (:output-ch server)))]
+        (is (= 1 (count (:tools r1))))
+        (is (some? (:nextCursor r1)))
+        ;; Second page
+        (async/put! (:input-ch server)
+                    (lsp.requests/request 2 "tools/list"
+                                          {:cursor (:nextCursor r1)}))
+        (let [r2 (:result (h/assert-take (:output-ch server)))]
+          (is (= 1 (count (:tools r2))))
+          (is (some? (:nextCursor r2)))
+          ;; Third (last) page
+          (async/put! (:input-ch server)
+                      (lsp.requests/request 3 "tools/list"
+                                            {:cursor (:nextCursor r2)}))
+          (let [r3 (:result (h/assert-take (:output-ch server)))]
+            (is (= 1 (count (:tools r3))))
+            (is (nil? (:nextCursor r3))
+                "Last page should not have nextCursor"))))
       (server/shutdown! server))))
 
 (deftest tool-execution
