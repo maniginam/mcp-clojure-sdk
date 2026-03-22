@@ -269,6 +269,11 @@
                        {:name "name", :value "Z"})]
           (is (= [] (get-in result [:completion :values])))))
 
+      (testing "complete-prompt-arg! convenience wrapper"
+        (let [values (client/complete-prompt-arg!
+                       (:client pair) "greet" "name" "B")]
+          (is (= ["Bob"] values))))
+
       (shutdown-pair! pair))))
 
 (deftest integration-resource-subscriptions

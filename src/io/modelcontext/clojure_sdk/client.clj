@@ -223,11 +223,31 @@
      (lsp.server/deref-or-cancel pending default-timeout-ms nil))))
 
 (defn complete!
-  "Request autocompletion suggestions from the server."
+  "Request autocompletion suggestions from the server.
+   ref is {:type \"ref/prompt\" :name name} or {:type \"ref/resource\" :uri uri}.
+   argument is {:name arg-name :value partial-value}."
   [client ref argument]
   (let [pending (lsp.server/send-request client "completion/complete"
                                          {:ref ref, :argument argument})]
     (lsp.server/deref-or-cancel pending default-timeout-ms nil)))
+
+(defn complete-prompt-arg!
+  "Convenience: request completions for a prompt argument.
+   Returns the completion values directly (or nil)."
+  [client prompt-name arg-name partial-value]
+  (let [result (complete! client
+                          {:type "ref/prompt", :name prompt-name}
+                          {:name arg-name, :value partial-value})]
+    (get-in result [:completion :values])))
+
+(defn complete-resource-arg!
+  "Convenience: request completions for a resource template argument.
+   Returns the completion values directly (or nil)."
+  [client resource-uri arg-name partial-value]
+  (let [result (complete! client
+                          {:type "ref/resource", :uri resource-uri}
+                          {:name arg-name, :value partial-value})]
+    (get-in result [:completion :values])))
 
 (defn set-logging-level!
   "Set the server's logging level."
