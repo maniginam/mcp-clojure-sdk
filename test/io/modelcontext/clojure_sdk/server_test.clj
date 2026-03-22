@@ -302,6 +302,24 @@
       (let [response (h/take-or-timeout (:output-ch server) 200)
             result (:result response)]
         (is (nil? (:instructions result))))
+      (server/shutdown! server)))
+  (testing "Initialize tracks connected clients"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools [tool-echo]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (is (empty? @(:connected-clients context)))
+      (async/put! (:input-ch server)
+                  (lsp.requests/request
+                    1 "initialize"
+                    {:protocolVersion "2025-03-26",
+                     :capabilities {},
+                     :clientInfo {:name "TestClient", :version "2.0.0"}}))
+      (h/assert-take (:output-ch server))
+      (is (= 1 (count @(:connected-clients context))))
+      (let [[_ client-data] (first @(:connected-clients context))]
+        (is (= {:name "TestClient", :version "2.0.0"}
+               (:client-info client-data))))
       (server/shutdown! server))))
 
 (deftest pagination-in-list-responses
