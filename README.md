@@ -338,6 +338,19 @@ For long-running tools, send progress updates to the client:
 (server/notify-progress! server "progress-token" 75)       ; 75, total unknown
 ```
 
+Tool handlers can access the request metadata (including `progressToken`) via the
+`server/*request-meta*` dynamic var:
+
+```clojure
+(defn my-long-running-handler [args]
+  (when-let [token (:progressToken server/*request-meta*)]
+    (server/notify-progress! server token 0 100))
+  ;; ... do work ...
+  (when-let [token (:progressToken server/*request-meta*)]
+    (server/notify-progress! server token 100 100))
+  {:type "text" :text "done"})
+```
+
 ### Cancellation Support
 
 Check if a request has been cancelled by the client:
