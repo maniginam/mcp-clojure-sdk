@@ -115,3 +115,48 @@
     (testing "Missing required fields"
       (is (not (specs/valid-implementation? {:name "test-only"})))
       (is (not (specs/valid-implementation? {:version "1.0.0"}))))))
+
+(deftest test-tool-with-annotations
+  (testing "Tool with annotations is valid"
+    (let [tool {:name "read-file"
+                :inputSchema {:type "object"
+                              :properties {"path" {:type "string"}}}
+                :annotations {:readOnlyHint true
+                              :idempotentHint true}}]
+      (is (specs/valid-tool? tool))))
+  (testing "Tool with all annotation fields is valid"
+    (let [tool {:name "delete-file"
+                :inputSchema {:type "object"}
+                :annotations {:title "Delete a file"
+                              :readOnlyHint false
+                              :destructiveHint true
+                              :idempotentHint false
+                              :openWorldHint false}}]
+      (is (specs/valid-tool? tool))))
+  (testing "Tool without annotations is valid"
+    (let [tool {:name "simple" :inputSchema {:type "object"}}]
+      (is (specs/valid-tool? tool)))))
+
+(deftest test-tool-with-output-schema
+  (testing "Tool with outputSchema is valid"
+    (let [tool {:name "compute"
+                :inputSchema {:type "object"}
+                :outputSchema {:type "object"
+                               :properties {"result" {:type "number"}}}}]
+      (is (specs/valid-tool? tool)))))
+
+(deftest test-server-spec-validation
+  (testing "Valid minimal server spec"
+    (is (specs/valid-server-spec? {:name "my-server" :version "1.0.0"})))
+  (testing "Valid server spec with tools"
+    (is (specs/valid-server-spec?
+          {:name "my-server" :version "1.0.0"
+           :tools [{:name "add"
+                     :description "Add numbers"
+                     :inputSchema {:type "object"
+                                   :properties {"a" {:type "number"}}}
+                     :handler identity}]})))
+  (testing "Invalid server spec missing name"
+    (is (not (specs/valid-server-spec? {:version "1.0.0"}))))
+  (testing "Invalid server spec missing version"
+    (is (not (specs/valid-server-spec? {:name "my-server"})))))
