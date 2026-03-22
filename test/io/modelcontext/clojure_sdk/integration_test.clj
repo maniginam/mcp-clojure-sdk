@@ -376,3 +376,39 @@
           (is (= 0 (count (:tools result))))))
 
       (shutdown-pair! pair))))
+
+(deftest integration-instructions
+  (testing "Server instructions are included in initialize response"
+    (let [pair (create-piped-pair
+                 {:name "instructed-server", :version "1.0.0",
+                  :tools [],
+                  :instructions "Use this server for math operations only."}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (let [result (client/initialize! (:client pair))]
+        (is (= "Use this server for math operations only."
+               (:instructions result))))
+      (shutdown-pair! pair)))
+  (testing "Server without instructions omits field from response"
+    (let [pair (create-piped-pair
+                 {:name "plain-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (let [result (client/initialize! (:client pair))]
+        (is (not (contains? result :instructions))))
+      (shutdown-pair! pair))))
+
+(deftest integration-initialize-stores-server-info
+  (testing "Client stores server info and capabilities in context after initialize"
+    (let [pair (create-piped-pair
+                 {:name "info-server", :version "3.0.0",
+                  :tools [calc-add]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair) {:context (:client-context pair)})
+      (is (= "info-server"
+             (:name @(:server-info (:client-context pair)))))
+      (is (= "3.0.0"
+             (:version @(:server-info (:client-context pair)))))
+      (is (some? @(:server-capabilities (:client-context pair))))
+      (shutdown-pair! pair))))
