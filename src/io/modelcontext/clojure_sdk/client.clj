@@ -280,6 +280,14 @@
   [client]
   (lsp.server/send-notification client "notifications/roots/list_changed" {}))
 
+(defn update-roots!
+  "Update the client's root list and notify the server of the change.
+   roots is a vector of root maps [{:uri \"file://...\" :name \"...\"}].
+   context is the client context created by create-context."
+  [client context roots]
+  (reset! (:roots context) roots)
+  (notify-roots-changed! client))
+
 (defn shutdown!
   "Gracefully shut down the MCP client."
   [client]

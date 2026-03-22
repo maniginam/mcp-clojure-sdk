@@ -538,3 +538,27 @@
       (is (= 1 (count @log-messages)))
       (is (= "info" (:level (first @log-messages))))
       (shutdown-pair! pair))))
+
+(deftest integration-update-roots
+  (testing "Client can update roots and server receives the change"
+    (let [pair (create-piped-pair
+                 {:name "roots-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :roots [{:uri "file:///old" :name "Old Root"}]})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      ;; Verify initial roots
+      (is (= [{:uri "file:///old" :name "Old Root"}]
+             @(:roots (:client-context pair))))
+      ;; Update roots
+      (client/update-roots! (:client pair) (:client-context pair)
+                            [{:uri "file:///new" :name "New Root"}])
+      ;; Client context should be updated
+      (is (= [{:uri "file:///new" :name "New Root"}]
+             @(:roots (:client-context pair))))
+      ;; Server should get the new roots when it requests them
+      (Thread/sleep 500)
+      (let [server-roots @(:roots (:server-context pair))]
+        (is (= 1 (count server-roots)))
+        (is (= "file:///new" (:uri (first server-roots)))))
+      (shutdown-pair! pair))))
