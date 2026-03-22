@@ -409,6 +409,38 @@
 
       (shutdown-pair! pair))))
 
+(deftest integration-pagination
+  (testing "Client can paginate through tools over piped streams"
+    (let [tools (for [i (range 5)]
+                  {:name (str "tool-" i)
+                   :description (str "Tool " i)
+                   :inputSchema {:type "object"}
+                   :handler (fn [_] {:type "text" :text (str i)})})
+          pair (create-piped-pair
+                 {:name "page-server", :version "1.0.0",
+                  :page-size 2,
+                  :tools (vec tools)}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Collect all tools across pages"
+        (let [all-tools (loop [cursor nil
+                               acc []]
+                          (let [result (client/list-tools! (:client pair)
+                                                           (cond-> {}
+                                                             cursor (assoc :cursor cursor)))
+                                new-acc (into acc (:tools result))]
+                            (if-let [next-cursor (:nextCursor result)]
+                              (recur next-cursor new-acc)
+                              new-acc)))]
+          (is (= 5 (count all-tools))
+              "Should collect all 5 tools across pages")
+          (is (= (set (map #(str "tool-" %) (range 5)))
+                 (set (map :name all-tools))))))
+
+      (shutdown-pair! pair))))
+
 (deftest integration-instructions
   (testing "Server instructions are included in initialize response"
     (let [pair (create-piped-pair
