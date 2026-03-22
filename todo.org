@@ -74,6 +74,14 @@ CLOSED: [2026-03-21 Sat]
 ** DONE Add registration/deregistration API with capability cleanup
 CLOSED: [2026-03-21 Sat]
 deregister-tool!, deregister-resource!, deregister-prompt!, deregister-resource-template!, deregister-completion!
+** DONE Add configurable page-size to server context
+CLOSED: [2026-03-21 Sat]
+** DONE Add progress notifications and cancellation tracking
+CLOSED: [2026-03-21 Sat]
+notify-progress!, cancelled?, clear-cancelled!
+** DONE Add resource template URI matching for resources/read
+CLOSED: [2026-03-21 Sat]
+Templates with :handler can resolve URIs matching the template pattern.
 ** TODO Ensure that error handling is correctly done for transports
 ** TODO Implement best practices for transports
 * DONE Implement the entire sampling section of the protocol
