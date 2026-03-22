@@ -2,22 +2,26 @@
 
 A `clojure-sdk` for creating Model Context Protocol servers and clients!
 
-## Table of Contents          :TOC_4:
-- [io.modelcontext/clojure-sdk](#iomodelcontextclojure-sdk)
-  - [Usage](#usage)
-    - [Deps](#deps)
-    - [Templates for Quickstart](#templates-for-quickstart)
-    - [Examples](#examples)
-      - [Building the Examples Jar](#building-the-examples-jar)
-      - [Calculator: `calculator_server`](#calculator-calculator_server)
-      - [Vega-lite: `vegalite_server`](#vega-lite-vegalite_server)
-      - [Code Analysis: `code_analysis_server`](#code-analysis-code_analysis_server)
-  - [Core Components](#core-components)
-  - [Communication Flow](#communication-flow)
-  - [Pending Work](#pending-work)
-  - [Development of the SDK](#development-of-the-sdk)
-  - [Inspiration](#inspiration)
-  - [License](#license)
+## Table of Contents
+- [Usage](#usage)
+  - [Deps](#deps)
+  - [Templates for Quickstart](#templates-for-quickstart)
+  - [Examples](#examples)
+  - [Client Usage](#client-usage)
+  - [Client Notification Callbacks](#client-notification-callbacks)
+  - [Dynamic Registration](#dynamic-registration)
+  - [Definition Helpers](#definition-helpers)
+  - [Response Coercion](#response-coercion)
+  - [Resource Templates with Handlers](#resource-templates-with-handlers)
+  - [Progress Notifications](#progress-notifications)
+  - [Cancellation Support](#cancellation-support)
+  - [Server Configuration](#server-configuration)
+- [Core Components](#core-components)
+- [Communication Flow](#communication-flow)
+- [Pending Work](#pending-work)
+- [Development of the SDK](#development-of-the-sdk)
+- [Inspiration](#inspiration)
+- [License](#license)
 
 ## Usage
 
