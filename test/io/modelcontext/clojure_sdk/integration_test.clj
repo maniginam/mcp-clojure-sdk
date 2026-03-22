@@ -756,3 +756,38 @@
       (is (<= 1 (count @progress-events)))
       (is (every? #(= "prog-1" (:progressToken %)) @progress-events))
       (shutdown-pair! pair))))
+
+(deftest integration-structured-content
+  (testing "Tool with outputSchema returns structuredContent over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "schema-server", :version "1.0.0",
+                  :tools [(-> (server/tool "compute" "Compute a result"
+                                {"x" {:type "number"}}
+                                (fn [{:keys [x]}] {:type "text" :text (str (* x 2))}))
+                              (server/with-output-schema
+                                {:type "object"
+                                 :properties {"result" {:type "number"}}}))]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/call-tool! (:client pair) "compute" {:x 5})]
+        (is (= [{:type "text" :text "10"}] (:content result)))
+        (is (= [{:type "text" :text "10"}] (:structuredContent result))
+            "Tool with outputSchema should include structuredContent"))
+      (shutdown-pair! pair))))
+
+(deftest integration-tool-without-schema-no-structured-content
+  (testing "Tool without outputSchema omits structuredContent over piped streams"
+    (let [pair (create-piped-pair
+                 {:name "no-schema-server", :version "1.0.0",
+                  :tools [(server/tool "echo" "Echo input"
+                            {"msg" {:type "string"}}
+                            (fn [{:keys [msg]}] msg))]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/call-tool! (:client pair) "echo" {:msg "hello"})]
+        (is (= [{:type "text" :text "hello"}] (:content result)))
+        (is (not (contains? result :structuredContent))
+            "Tool without outputSchema should not include structuredContent"))
+      (shutdown-pair! pair))))
