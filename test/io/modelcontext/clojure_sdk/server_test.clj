@@ -1023,6 +1023,28 @@
                            identity)]
       (is (= [{:name "name" :required true}] (:arguments p))))))
 
+(deftest request-meta-binding
+  (testing "Tool handler can access *request-meta* during execution"
+    (let [captured-meta (atom nil)
+          context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "meta-tool"
+                              :description "Captures request meta"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_]
+                                         (reset! captured-meta server/*request-meta*)
+                                         {:type "text", :text "ok"})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "meta-tool",
+                                         :arguments {},
+                                         :_meta {:progressToken "tok-123"}}))
+      (h/assert-take (:output-ch server))
+      (is (= {:progressToken "tok-123"} @captured-meta))
+      (server/shutdown! server))))
+
 (deftest duplicate-registration
   (testing "Registering a tool with the same name replaces the previous one"
     (let [context (server/create-context!

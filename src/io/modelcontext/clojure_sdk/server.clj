@@ -145,6 +145,11 @@
       (:instructions context)
       (assoc :instructions (:instructions context)))))
 
+(def ^:dynamic *request-meta*
+  "Bound to the _meta field of the current request during handler execution.
+   Tool handlers can use this to access progressToken for notify-progress! calls."
+  nil)
+
 (defn- handle-ping [_context _params] (log/trace :fn :handle-ping) {})
 
 (defn- handle-list-tools
@@ -184,9 +189,11 @@
     (if-not tool-name
       {:error (mcp.errors/body :invalid-params {:missing "name"})}
       (let [tools @(:tools context)
-            arguments (:arguments params)]
+            arguments (:arguments params)
+            meta-info (:_meta params)]
         (if-let [{:keys [tool handler]} (get tools tool-name)]
-          (try (coerce-tool-response tool (handler arguments))
+          (try (binding [*request-meta* meta-info]
+                 (coerce-tool-response tool (handler arguments)))
                (catch Exception e
                  {:content [{:type "text", :text (str "Error: " (.getMessage e))}],
                   :isError true}))
