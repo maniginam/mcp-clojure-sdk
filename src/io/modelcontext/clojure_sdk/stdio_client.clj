@@ -62,3 +62,19 @@
     (.waitFor process 5 java.util.concurrent.TimeUnit/SECONDS)
     (when (.isAlive process)
       (.destroyForcibly process))))
+
+(defmacro with-connection
+  "Create and connect to an MCP server, execute body, then disconnect.
+   Binds the connection map (with :client, :process, :context keys) to binding-sym.
+
+   Example:
+     (with-connection [conn {:command [\"java\" \"-cp\" \"server.jar\" \"my_server\"]
+                             :client-info {:name \"my-client\" :version \"1.0.0\"}}]
+       (client/list-tools! (:client conn)))"
+  [[binding-sym opts] & body]
+  `(let [~binding-sym (stdio-client ~opts)]
+     (try
+       (connect! ~binding-sym)
+       ~@body
+       (finally
+         (disconnect! ~binding-sym)))))
