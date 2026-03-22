@@ -791,3 +791,27 @@
         (is (not (contains? result :structuredContent))
             "Tool without outputSchema should not include structuredContent"))
       (shutdown-pair! pair))))
+
+(deftest integration-tool-annotations
+  (testing "Tool annotations survive serialization through piped transport"
+    (let [pair (create-piped-pair
+                 {:name "annotated-server", :version "1.0.0",
+                  :tools [(-> (server/tool "read-file" "Read a file"
+                                {"path" {:type "string"}}
+                                (fn [{:keys [path]}] (str "contents of " path)))
+                              (server/annotate {:readOnlyHint true
+                                                :idempotentHint true
+                                                :openWorldHint false}))]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/list-tools! (:client pair))
+            tool (first (:tools result))
+            annotations (:annotations tool)]
+        (is (= "read-file" (:name tool)))
+        (is (true? (:readOnlyHint annotations)))
+        (is (true? (:idempotentHint annotations)))
+        (is (false? (:openWorldHint annotations)))
+        (is (nil? (:destructiveHint annotations))
+            "Unset annotations should not be present"))
+      (shutdown-pair! pair))))
