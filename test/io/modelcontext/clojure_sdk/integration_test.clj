@@ -729,3 +729,30 @@
       (let [result (client/initialize! (:client pair))]
         (is (= "Always be helpful and concise." (:instructions result))))
       (shutdown-pair! pair))))
+
+(deftest integration-progress-notification-flow
+  (testing "Tool handler sends progress that client receives via callback"
+    (let [progress-events (atom [])
+          pair (create-piped-pair
+                 {:name "progress-server", :version "1.0.0",
+                  :tools [{:name "long-task"
+                           :description "Task with progress"
+                           :inputSchema {:type "object"}
+                           :handler (fn [_]
+                                      (when-let [token (:progressToken server/*request-meta*)]
+                                        (server/notify-progress! server/*server* token 1 3)
+                                        (server/notify-progress! server/*server* token 2 3)
+                                        (server/notify-progress! server/*server* token 3 3))
+                                      "completed")}]}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :on-progress (fn [p] (swap! progress-events conj p))})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      (let [result (client/call-tool! (:client pair) "long-task" {}
+                                      {:progressToken "prog-1"})]
+        (is (= "completed" (-> result :content first :text))))
+      ;; Give notifications time to arrive
+      (Thread/sleep 500)
+      (is (<= 1 (count @progress-events)))
+      (is (every? #(= "prog-1" (:progressToken %)) @progress-events))
+      (shutdown-pair! pair))))

@@ -107,15 +107,6 @@
   (when-let [handler (:on-log-message context)]
     (handler params)))
 
-;; [ref: progress_notification]
-(defmethod lsp.server/receive-notification "notifications/progress"
-  [_ context params]
-  (log/trace :fn :receive-notification
-             :method "notifications/progress"
-             :params params)
-  (when-let [handler (:on-progress context)]
-    (handler params)))
-
 ;;; Client API — Requests (sent TO server)
 
 (def ^:private default-timeout-ms 30000)

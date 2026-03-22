@@ -578,12 +578,14 @@
 
 ;; [ref: progress_notification]
 (defmethod lsp.server/receive-notification "notifications/progress"
-  [_ _context params]
+  [_ context params]
   (log/trace :fn :receive-notification
              :method "notifications/progress"
              :progress-token (:progressToken params)
              :progress (:progress params))
-  (conform-or-log ::specs/progress-notification params))
+  (conform-or-log ::specs/progress-notification params)
+  (when-let [handler (:on-progress context)]
+    (handler params)))
 
 ;; [ref: progress_notification_send]
 (defn notify-progress!
