@@ -1023,6 +1023,35 @@
                            identity)]
       (is (= [{:name "name" :required true}] (:arguments p))))))
 
+(deftest duplicate-registration
+  (testing "Registering a tool with the same name replaces the previous one"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0"})
+          _ (server/register-tool! context
+                                   {:name "calc"
+                                    :description "Version 1"
+                                    :inputSchema {:type "object"}}
+                                   (fn [_] "v1"))
+          _ (server/register-tool! context
+                                   {:name "calc"
+                                    :description "Version 2"
+                                    :inputSchema {:type "object"}}
+                                   (fn [_] "v2"))
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; Should have 1 tool, not 2
+      (async/put! (:input-ch server) (lsp.requests/request 1 "tools/list" {}))
+      (let [result (:result (h/assert-take (:output-ch server)))]
+        (is (= 1 (count (:tools result))))
+        (is (= "Version 2" (:description (first (:tools result))))))
+      ;; Should use the new handler
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 2 "tools/call"
+                                        {:name "calc", :arguments {}}))
+      (let [result (:result (h/assert-take (:output-ch server)))]
+        (is (= "v2" (-> result :content first :text))))
+      (server/shutdown! server))))
+
 (deftest validate-spec-test
   (testing "Validating server specifications"
     (let [valid-tool {:name "valid-tool",
