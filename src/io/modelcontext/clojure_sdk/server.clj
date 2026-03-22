@@ -233,9 +233,11 @@
   (let [uri (:uri params)]
     (if-not uri
       {:error (mcp.errors/body :invalid-params {:missing "uri"})}
-      (let [resources @(:resources context)]
+      (let [resources @(:resources context)
+            meta-info (:_meta params)]
         (if-let [{:keys [handler]} (get resources uri)]
-          (try {:contents [(handler uri)]}
+          (try (binding [*request-meta* meta-info]
+                 {:contents [(handler uri)]})
                (catch Exception e
                  {:contents [{:uri uri,
                               :mimeType "text/plain",
@@ -244,7 +246,8 @@
           ;; Fall back to template matching
           (if-let [tmpl-handler (find-template-handler
                                   @(:resource-templates context) uri)]
-            (try {:contents [(tmpl-handler uri)]}
+            (try (binding [*request-meta* meta-info]
+                   {:contents [(tmpl-handler uri)]})
                  (catch Exception e
                    {:contents [{:uri uri,
                                 :mimeType "text/plain",
@@ -275,7 +278,8 @@
       (let [prompts @(:prompts context)
             arguments (:arguments params)]
         (if-let [{:keys [handler]} (get prompts prompt-name)]
-          (try (handler arguments)
+          (try (binding [*request-meta* (:_meta params)]
+                 (handler arguments))
                (catch Exception e
                  {:messages [{:role "assistant",
                               :content {:type "text",
