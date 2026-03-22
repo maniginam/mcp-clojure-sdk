@@ -85,8 +85,13 @@
                     (loop []
                       (when-let [msg (async/<!! messages)]
                         (log/trace :fn :output-stream->output-chan :msg msg)
-                        (try
-                          (write-message writer msg)
-                          (catch Throwable e (async/close! messages) (throw e)))
-                        (recur)))))
+                        (let [ok? (try
+                                    (write-message writer msg)
+                                    true
+                                    (catch Throwable e
+                                      (log/error :fn :output-stream->output-chan
+                                                 :error "Write failed" :ex e)
+                                      (async/close! messages)
+                                      false))]
+                          (when ok? (recur)))))))
     messages))
