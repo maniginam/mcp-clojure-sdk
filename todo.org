@@ -82,6 +82,9 @@ notify-progress!, cancelled?, clear-cancelled!
 ** DONE Add resource template URI matching for resources/read
 CLOSED: [2026-03-21 Sat]
 Templates with :handler can resolve URIs matching the template pattern.
+** DONE Improve transport write error handling
+CLOSED: [2026-03-22 Sat]
+Output channel now logs write failures and closes gracefully instead of throwing.
 ** TODO Ensure that error handling is correctly done for transports
 ** TODO Implement best practices for transports
 * DONE Implement the entire sampling section of the protocol
