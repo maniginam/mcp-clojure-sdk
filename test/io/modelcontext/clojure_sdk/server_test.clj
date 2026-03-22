@@ -1739,6 +1739,28 @@
         (is (= "User: users://42" (:text content))))
       (server/shutdown! server))))
 
+(deftest connected-clients-tracking
+  (testing "Initialize tracks connected clients"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools []})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; Initially no connected clients
+      (is (empty? @(:connected-clients context)))
+      ;; Initialize
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "initialize"
+                                        {:protocolVersion "2024-11-05"
+                                         :capabilities {}
+                                         :clientInfo {:name "test-client"
+                                                      :version "1.0"}}))
+      (h/assert-take (:output-ch server))
+      ;; Should have one connected client
+      (is (= 1 (count @(:connected-clients context))))
+      (let [[_ client-data] (first @(:connected-clients context))]
+        (is (= "test-client" (get-in client-data [:client-info :name]))))
+      (server/shutdown! server))))
+
 (deftest resource-handler-returning-vector
   (testing "Resource handler returning a vector of content items"
     (let [context (server/create-context!
