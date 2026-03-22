@@ -342,6 +342,25 @@
             result (:result response)]
         (is (= 2 (count (:prompts result))))
         (is (nil? (:nextCursor result))))
+      (server/shutdown! server)))
+  (testing "Custom page-size limits items per page"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :page-size 1,
+                     :tools [tool-echo
+                             {:name "other"
+                              :description "Other tool"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] "ok")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server) (lsp.requests/request 1 "tools/list" {}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= 1 (count (:tools result)))
+            "Should return only 1 tool with page-size 1")
+        (is (some? (:nextCursor result))
+            "Should include nextCursor when more items exist"))
       (server/shutdown! server))))
 
 (deftest tool-execution

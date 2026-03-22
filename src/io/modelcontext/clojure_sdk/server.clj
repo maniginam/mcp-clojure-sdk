@@ -55,20 +55,21 @@
 
 ;;; Pagination
 
-(def ^:private default-page-size 50)
+(def default-page-size 50)
 
 (defn- paginate
   "Apply cursor-based pagination to a collection of items.
-   cursor is a base64-encoded offset string. Returns {:items [...] :nextCursor ...}."
-  [items cursor]
-  (let [offset (if cursor
-                 (try (Long/parseLong cursor) (catch Exception _ 0))
-                 0)
-        page (vec (take default-page-size (drop offset items)))
-        next-offset (+ offset (count page))
-        has-more? (< next-offset (count items))]
-    (cond-> {:items page}
-      has-more? (assoc :nextCursor (str next-offset)))))
+   cursor is an offset string. page-size defaults to default-page-size."
+  ([items cursor] (paginate items cursor default-page-size))
+  ([items cursor page-size]
+   (let [offset (if cursor
+                  (try (Long/parseLong cursor) (catch Exception _ 0))
+                  0)
+         page (vec (take page-size (drop offset items)))
+         next-offset (+ offset (count page))
+         has-more? (< next-offset (count items))]
+     (cond-> {:items page}
+       has-more? (assoc :nextCursor (str next-offset))))))
 
 ;;; Helper functions for handling various requests
 
@@ -114,7 +115,8 @@
   [context params]
   (log/trace :fn :handle-list-tools)
   (let [all-tools (mapv :tool (vals @(:tools context)))
-        {:keys [items nextCursor]} (paginate all-tools (:cursor params))]
+        {:keys [items nextCursor]} (paginate all-tools (:cursor params)
+                            (or (:page-size context) default-page-size))]
     (cond-> {:tools items}
       nextCursor (assoc :nextCursor nextCursor))))
 
@@ -151,7 +153,8 @@
   [context params]
   (log/trace :fn :handle-list-resources)
   (let [all-resources (mapv :resource (vals @(:resources context)))
-        {:keys [items nextCursor]} (paginate all-resources (:cursor params))]
+        {:keys [items nextCursor]} (paginate all-resources (:cursor params)
+                                            (or (:page-size context) default-page-size))]
     (cond-> {:resources items}
       nextCursor (assoc :nextCursor nextCursor))))
 
@@ -178,7 +181,8 @@
   [context params]
   (log/trace :fn :handle-list-prompts)
   (let [all-prompts (mapv :prompt (vals @(:prompts context)))
-        {:keys [items nextCursor]} (paginate all-prompts (:cursor params))]
+        {:keys [items nextCursor]} (paginate all-prompts (:cursor params)
+                                            (or (:page-size context) default-page-size))]
     (cond-> {:prompts items}
       nextCursor (assoc :nextCursor nextCursor))))
 
@@ -301,7 +305,8 @@
   [context params]
   (log/trace :fn :handle-list-resource-templates)
   (let [all-templates (vec (vals @(:resource-templates context)))
-        {:keys [items nextCursor]} (paginate all-templates (:cursor params))]
+        {:keys [items nextCursor]} (paginate all-templates (:cursor params)
+                                            (or (:page-size context) default-page-size))]
     (cond-> {:resourceTemplates items}
       nextCursor (assoc :nextCursor nextCursor))))
 
@@ -635,12 +640,14 @@
                  :type \"text\"
                  :handler (fn [uri] ...)}]
     :instructions \"Optional instructions for LLMs on how to use this server\"}"
-  [{:keys [name version tools prompts resources resource-templates instructions],
+  [{:keys [name version tools prompts resources resource-templates instructions
+            page-size],
     :as spec}]
   (validate-spec! spec)
   (log/with-context {:action :create-context!}
     (let [context (cond-> (create-empty-context name version)
-                    instructions (assoc :instructions instructions))]
+                    instructions (assoc :instructions instructions)
+                    page-size (assoc :page-size page-size))]
       (when (> (count tools) 0)
         (log/debug :num-tools (count tools)
                    :msg "Registering tools"
