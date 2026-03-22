@@ -404,6 +404,38 @@
                                     (mcp.errors/body :invalid-params
                                                      {:missing "name"}))
                (h/assert-take (:output-ch server)))))
+      (server/shutdown! server)))
+  (testing "Tool handler returning a string is wrapped as text content"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "str-tool"
+                              :description "Returns a string"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] "just a string")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "str-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= [{:type "text", :text "just a string"}] (:content result))))
+      (server/shutdown! server)))
+  (testing "Tool handler returning nil produces empty content"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "nil-tool"
+                              :description "Returns nil"
+                              :inputSchema {:type "object"}
+                              :handler (fn [_] nil)}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "nil-tool", :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (= [] (:content result))))
       (server/shutdown! server))))
 
 (deftest prompt-listing

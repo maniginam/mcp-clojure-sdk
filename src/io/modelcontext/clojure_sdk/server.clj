@@ -123,13 +123,18 @@
 
 (defn coerce-tool-response
   "Coerces a tool response into the expected format.
-   If the response is not sequential, wraps it in a vector.
+   Handles nil (empty result), strings (wraps as text), maps (wraps as content item),
+   and sequences (uses as content array).
    If the tool has an outputSchema, adds structuredContent."
   [tool response]
-  (let [response (if (sequential? response) (vec response) [response])
-        base-map {:content response}]
+  (let [content (cond
+                  (nil? response) []
+                  (string? response) [{:type "text", :text response}]
+                  (sequential? response) (vec response)
+                  :else [response])
+        base-map {:content content}]
     ;; @TODO: [ref: structured-content-should-match-output-schema-exactly]
-    (cond-> base-map (:outputSchema tool) (assoc :structuredContent response))))
+    (cond-> base-map (:outputSchema tool) (assoc :structuredContent content))))
 
 (defn- handle-call-tool
   [context params]
