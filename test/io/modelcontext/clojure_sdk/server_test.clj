@@ -1476,3 +1476,231 @@
         (is (= "text/plain" (:mimeType content)))
         (is (= "Hello from resource!" (:text content))))
       (server/shutdown! server))))
+
+;;; Edge Case Tests
+
+(deftest call-nonexistent-tool
+  (testing "Calling a tool that doesn't exist returns tool-not-found error"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools []})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "nonexistent" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))]
+        (is (= (lsp.responses/error (lsp.responses/response 1)
+                                    (mcp.errors/body :tool-not-found
+                                                     {:tool-name "nonexistent"}))
+               response)))
+      (server/shutdown! server))))
+
+(deftest call-tool-with-empty-arguments
+  (testing "Calling a tool with empty arguments map works"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "no-args"
+                              :description "Takes no arguments"
+                              :inputSchema {:type "object" :properties {}}
+                              :handler (fn [_args] "done")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "no-args" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            content (first (get-in response [:result :content]))]
+        (is (= "text" (:type content)))
+        (is (= "done" (:text content))))
+      (server/shutdown! server))))
+
+(deftest call-tool-nil-response
+  (testing "Tool handler returning nil produces empty content"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "nil-tool"
+                              :description "Returns nil"
+                              :inputSchema {:type "object" :properties {}}
+                              :handler (fn [_] nil)}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "nil-tool" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))]
+        (is (= [] (get-in response [:result :content]))))
+      (server/shutdown! server))))
+
+(deftest read-nonexistent-resource
+  (testing "Reading a resource that doesn't exist returns resource-not-found error"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resources [{:uri "test://exists"
+                                  :name "Exists"
+                                  :handler (fn [_] "data")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/read"
+                                        {:uri "test://nonexistent"}))
+      (let [response (h/assert-take (:output-ch server))]
+        (is (= (lsp.responses/error (lsp.responses/response 1)
+                                    (mcp.errors/body :resource-not-found
+                                                     {:uri "test://nonexistent"}))
+               response)))
+      (server/shutdown! server))))
+
+(deftest get-nonexistent-prompt
+  (testing "Getting a prompt that doesn't exist returns prompt-not-found error"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :prompts [{:name "exists"
+                                :description "Exists"
+                                :handler (fn [_] "hello")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "prompts/get"
+                                        {:name "nonexistent"}))
+      (let [response (h/assert-take (:output-ch server))]
+        (is (= (lsp.responses/error (lsp.responses/response 1)
+                                    (mcp.errors/body :prompt-not-found
+                                                     {:prompt-name "nonexistent"}))
+               response)))
+      (server/shutdown! server))))
+
+(deftest dynamic-registration-deregistration
+  (testing "Registering and deregistering tools updates capabilities"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools []})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; Initially no tools capability
+      (is (nil? (:tools @(:capabilities context))))
+      ;; Register a tool
+      (server/register-tool! context
+                             {:name "dyn-tool"
+                              :description "Dynamic"
+                              :inputSchema {:type "object" :properties {}}}
+                             (fn [_] "ok"))
+      (is (some? (:tools @(:capabilities context))))
+      ;; Tool should be callable
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "dyn-tool" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            content (first (get-in response [:result :content]))]
+        (is (= "ok" (:text content))))
+      ;; Deregister
+      (server/deregister-tool! context "dyn-tool")
+      (is (nil? (:tools @(:capabilities context))))
+      ;; Now calling should fail
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 2 "tools/call"
+                                        {:name "dyn-tool" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))]
+        (is (= (lsp.responses/error (lsp.responses/response 2)
+                                    (mcp.errors/body :tool-not-found
+                                                     {:tool-name "dyn-tool"}))
+               response)))
+      (server/shutdown! server))))
+
+(deftest tool-handler-throwing-exception
+  (testing "Tool handler that throws returns isError response"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "broken"
+                              :description "Throws"
+                              :inputSchema {:type "object" :properties {}}
+                              :handler (fn [_] (throw (ex-info "Boom!" {:reason "test"})))}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "broken" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            result (:result response)]
+        (is (true? (:isError result)))
+        (is (clojure.string/includes?
+              (:text (first (:content result))) "Boom!")))
+      (server/shutdown! server))))
+
+(deftest list-tools-empty-server
+  (testing "Listing tools on server with no tools returns empty list"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools []})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/list" {}))
+      (let [response (h/assert-take (:output-ch server))]
+        (is (= [] (get-in response [:result :tools]))))
+      (server/shutdown! server))))
+
+(deftest tool-returning-sequence
+  (testing "Tool handler returning a sequence of content items"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :tools [{:name "multi"
+                              :description "Multiple items"
+                              :inputSchema {:type "object" :properties {}}
+                              :handler (fn [_]
+                                         [{:type "text" :text "first"}
+                                          {:type "text" :text "second"}])}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "tools/call"
+                                        {:name "multi" :arguments {}}))
+      (let [response (h/assert-take (:output-ch server))
+            content (get-in response [:result :content])]
+        (is (= 2 (count content)))
+        (is (= "first" (:text (first content))))
+        (is (= "second" (:text (second content)))))
+      (server/shutdown! server))))
+
+(deftest cancellation-tracking
+  (testing "Cancelled requests are tracked and clearable"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0", :tools []})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      ;; Send a cancellation notification
+      (async/put! (:input-ch server)
+                  {:jsonrpc "2.0"
+                   :method "notifications/cancelled"
+                   :params {:requestId "req-1" :reason "user cancelled"}})
+      (Thread/sleep 100)
+      (is (server/cancelled? context "req-1"))
+      (is (not (server/cancelled? context "req-2")))
+      ;; Clear specific
+      (server/clear-cancelled! context "req-1")
+      (is (not (server/cancelled? context "req-1")))
+      ;; Add multiple and clear all
+      (swap! (:cancelled-requests context) conj "a" "b" "c")
+      (server/clear-cancelled! context)
+      (is (not (server/cancelled? context "a")))
+      (server/shutdown! server))))
+
+(deftest resource-template-resolution
+  (testing "Resource templates resolve URIs via handler"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resource-templates [{:uriTemplate "users://{userId}"
+                                           :name "User"
+                                           :description "Get user by ID"
+                                           :mimeType "text/plain"
+                                           :handler (fn [uri]
+                                                      {:uri uri
+                                                       :mimeType "text/plain"
+                                                       :text (str "User: " uri)})}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/read"
+                                        {:uri "users://42"}))
+      (let [response (h/assert-take (:output-ch server))
+            content (first (get-in response [:result :contents]))]
+        (is (= "users://42" (:uri content)))
+        (is (= "User: users://42" (:text content))))
+      (server/shutdown! server))))
