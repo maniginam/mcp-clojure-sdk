@@ -562,3 +562,31 @@
         (is (= 1 (count server-roots)))
         (is (= "file:///new" (:uri (first server-roots)))))
       (shutdown-pair! pair))))
+
+(deftest integration-logging-level-filter
+  (testing "Server respects client-set log level for filtering"
+    (let [log-messages (atom [])
+          pair (create-piped-pair
+                 {:name "log-filter-server", :version "1.0.0", :tools []}
+                 {:client-info {:name "test-client", :version "1.0.0"},
+                  :on-log-message (fn [msg] (swap! log-messages conj msg))})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+      ;; Set log level to "warning"
+      (client/set-logging-level! (:client pair) "warning")
+      (Thread/sleep 200)
+      ;; Send messages at various levels
+      (let [srv @(:protocol (:server-context pair))]
+        (server/notify-log-message! srv "debug" "debug msg"
+                                    :context (:server-context pair))
+        (server/notify-log-message! srv "info" "info msg"
+                                    :context (:server-context pair))
+        (server/notify-log-message! srv "warning" "warning msg"
+                                    :context (:server-context pair))
+        (server/notify-log-message! srv "error" "error msg"
+                                    :context (:server-context pair)))
+      (Thread/sleep 500)
+      ;; Only warning and above should come through
+      (is (= 2 (count @log-messages)))
+      (is (= #{"warning" "error"} (set (map :level @log-messages))))
+      (shutdown-pair! pair))))
