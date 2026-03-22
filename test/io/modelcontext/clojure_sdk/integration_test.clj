@@ -377,6 +377,38 @@
 
       (shutdown-pair! pair))))
 
+(deftest integration-resource-template-read
+  (testing "Client can read resources via template-matched URIs"
+    (let [pair (create-piped-pair
+                 {:name "tmpl-server", :version "1.0.0",
+                  :tools [],
+                  :resource-templates
+                  [{:uriTemplate "file:///users/{userId}/profile",
+                    :name "User Profile",
+                    :description "A user's profile",
+                    :mimeType "text/plain",
+                    :handler (fn [uri]
+                               {:uri uri,
+                                :mimeType "text/plain",
+                                :text (str "Profile at " uri)})}]}
+                 {:client-info {:name "test-client", :version "1.0.0"}})]
+      (start-pair! pair)
+      (client/initialize! (:client pair))
+
+      (testing "Template appears in resource templates list"
+        (let [result (client/list-resource-templates! (:client pair))]
+          (is (= 1 (count (:resourceTemplates result))))
+          (is (= "file:///users/{userId}/profile"
+                 (:uriTemplate (first (:resourceTemplates result)))))))
+
+      (testing "Read resource matching template pattern"
+        (let [result (client/read-resource! (:client pair)
+                                             "file:///users/42/profile")]
+          (is (= "Profile at file:///users/42/profile"
+                 (-> result :contents first :text)))))
+
+      (shutdown-pair! pair))))
+
 (deftest integration-instructions
   (testing "Server instructions are included in initialize response"
     (let [pair (create-piped-pair
