@@ -195,6 +195,34 @@
       (is (= 0 (count @(:resource-templates context))))
       (is (not (contains? @(:capabilities context) :resources))))))
 
+(deftest server-context-creation
+  (testing "create-context! sets capabilities based on registered items"
+    (let [ctx (server/create-context!
+                {:name "test" :version "1.0.0"
+                 :tools [{:name "t" :inputSchema {:type "object"} :handler identity}]
+                 :resources [{:uri "r://1" :name "R" :handler identity}]
+                 :prompts [{:name "p" :description "P" :handler identity}]})]
+      (is (contains? @(:capabilities ctx) :tools))
+      (is (contains? @(:capabilities ctx) :resources))
+      (is (contains? @(:capabilities ctx) :prompts))
+      (is (contains? @(:capabilities ctx) :logging))))
+  (testing "create-context! with no items has minimal capabilities"
+    (let [ctx (server/create-context!
+                {:name "test" :version "1.0.0"})]
+      (is (not (contains? @(:capabilities ctx) :tools)))
+      (is (not (contains? @(:capabilities ctx) :resources)))
+      (is (not (contains? @(:capabilities ctx) :prompts)))
+      (is (contains? @(:capabilities ctx) :logging))))
+  (testing "create-context! stores instructions"
+    (let [ctx (server/create-context!
+                {:name "test" :version "1.0.0"
+                 :instructions "Be helpful"})]
+      (is (= "Be helpful" (:instructions ctx)))))
+  (testing "create-context! stores page-size"
+    (let [ctx (server/create-context!
+                {:name "test" :version "1.0.0" :page-size 10})]
+      (is (= 10 (:page-size ctx))))))
+
 (deftest completion-deregistration
   (testing "Deregistering a completion removes it and updates capabilities"
     (let [context (server/create-context!
