@@ -242,6 +242,12 @@ The SDK also provides an MCP client for connecting to MCP servers:
   (client/set-logging-level! client "warning")
   (client/ping! client)
 
+  ;; Auto-paginating helpers (follows cursors automatically)
+  (client/list-all-tools! client)
+  (client/list-all-resources! client)
+  (client/list-all-prompts! client)
+  (client/list-all-resource-templates! client)
+
   ;; Disconnect
   (stdio-client/disconnect! conn))
 ```
