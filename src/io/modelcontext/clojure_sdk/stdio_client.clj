@@ -30,8 +30,15 @@
    - :env - map of environment variables to set
    - :client-info - {:name \"..\" :version \"..\"} identifying this client
    - :roots - vector of root maps
-   - :capabilities - client capabilities map"
-  [{:keys [command env client-info roots capabilities]}]
+   - :capabilities - client capabilities map
+   - :sampling-handler - (fn [params] response) for sampling/createMessage requests
+   - :on-tools-changed - (fn [params] ...) called when server's tool list changes
+   - :on-resources-changed - (fn [params] ...) called when server's resource list changes
+   - :on-prompts-changed - (fn [params] ...) called when server's prompt list changes
+   - :on-resource-updated - (fn [params] ...) called when a subscribed resource updates
+   - :on-log-message - (fn [params] ...) called when server sends a log message
+   - :on-progress - (fn [params] ...) called when server sends progress notifications"
+  [{:keys [command env] :as opts}]
   (log/trace :fn :stdio-client :command command)
   (let [process (start-process! command env)
         input-ch (mcp.io-chan/input-stream->input-chan (.getInputStream process))
@@ -40,9 +47,7 @@
         endpoint (lsp.server/chan-server {:input-ch input-ch,
                                           :output-ch output-ch,
                                           :log-ch log-ch})
-        context (client/create-context {:client-info client-info,
-                                        :roots roots,
-                                        :capabilities capabilities})]
+        context (client/create-context (dissoc opts :command :env))]
     {:client endpoint, :process process, :context context}))
 
 (defn connect!
@@ -51,7 +56,9 @@
    Returns the server's initialize response."
   [{:keys [client context]}]
   (client/start! client context)
-  (client/initialize! client {:context context}))
+  (client/initialize! client {:context context
+                              :client-info (:client-info context)
+                              :capabilities (:capabilities context)}))
 
 (defn disconnect!
   "Shut down the client and destroy the server process."
