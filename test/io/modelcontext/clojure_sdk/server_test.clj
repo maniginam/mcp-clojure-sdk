@@ -1009,7 +1009,10 @@
       (is (= "text/plain" (:mimeType r)))
       (is (ifn? (:handler r))))
     (let [r (server/resource "file:///img.png" "Image" "image/png" identity)]
-      (is (= "image/png" (:mimeType r))))))
+      (is (= "image/png" (:mimeType r))))
+    (let [r (server/resource "file:///data.json" "Data" "Project data file" "application/json" identity)]
+      (is (= "Project data file" (:description r)))
+      (is (= "application/json" (:mimeType r))))))
 
 (deftest resource-template-helper
   (testing "resource-template helper creates template maps"

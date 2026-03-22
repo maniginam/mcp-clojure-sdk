@@ -63,7 +63,10 @@
   ([uri name handler]
    (resource uri name "text/plain" handler))
   ([uri name mime-type handler]
-   {:uri uri, :name name, :mimeType mime-type, :handler handler}))
+   {:uri uri, :name name, :mimeType mime-type, :handler handler})
+  ([uri name description mime-type handler]
+   {:uri uri, :name name, :description description,
+    :mimeType mime-type, :handler handler}))
 
 (defn resource-template
   "Define a resource template map for use in create-context! or register-resource-template!.
