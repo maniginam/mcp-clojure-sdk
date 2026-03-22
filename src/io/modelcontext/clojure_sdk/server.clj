@@ -271,14 +271,16 @@
         resource-templates))
 
 (defn- coerce-resource-response
-  "Coerce a resource handler response into a content map.
-   Strings are wrapped into {:uri uri :mimeType \"text/plain\" :text string}.
-   Maps are passed through as-is."
+  "Coerce a resource handler response into content items.
+   Strings are wrapped into [{:uri uri :mimeType \"text/plain\" :text string}].
+   Maps are wrapped in a vector.
+   Vectors/sequences are passed through (multiple content items)."
   [uri response]
   (cond
-    (string? response) {:uri uri, :mimeType "text/plain", :text response}
-    (map? response) response
-    :else response))
+    (string? response) [{:uri uri, :mimeType "text/plain", :text response}]
+    (sequential? response) (vec response)
+    (map? response) [response]
+    :else [response]))
 
 (defn- handle-read-resource
   [context params]
@@ -292,7 +294,7 @@
           (try (binding [*request-meta* meta-info
                          *server* @(:protocol context)
                          *context* context]
-                 {:contents [(coerce-resource-response uri (handler uri))]})
+                 {:contents (coerce-resource-response uri (handler uri))})
                (catch Exception e
                  (log/error :fn :handle-read-resource :uri uri :exception e)
                  {:contents [{:uri uri,
@@ -305,7 +307,7 @@
             (try (binding [*request-meta* meta-info
                            *server* @(:protocol context)
                            *context* context]
-                   {:contents [(coerce-resource-response uri (tmpl-handler uri))]})
+                   {:contents (coerce-resource-response uri (tmpl-handler uri))})
                  (catch Exception e
                    (log/error :fn :handle-read-resource :uri uri :template true :exception e)
                    {:contents [{:uri uri,
