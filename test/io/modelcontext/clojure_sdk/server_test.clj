@@ -1458,3 +1458,21 @@
         (is (= "user" (:role (first (:messages result)))))
         (is (= "assistant" (:role (second (:messages result))))))
       (server/shutdown! server))))
+
+(deftest resource-response-coercion
+  (testing "Resource handler returning string is auto-wrapped into content map"
+    (let [context (server/create-context!
+                    {:name "test-server", :version "1.0.0",
+                     :resources [{:uri "test://simple"
+                                  :name "Simple"
+                                  :handler (fn [_uri] "Hello from resource!")}]})
+          server (server/chan-server)
+          _join (server/start! server context)]
+      (async/put! (:input-ch server)
+                  (lsp.requests/request 1 "resources/read" {:uri "test://simple"}))
+      (let [response (h/assert-take (:output-ch server))
+            content (first (get-in response [:result :contents]))]
+        (is (= "test://simple" (:uri content)))
+        (is (= "text/plain" (:mimeType content)))
+        (is (= "Hello from resource!" (:text content))))
+      (server/shutdown! server))))
